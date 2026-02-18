@@ -1,0 +1,1 @@
+/usr/bin/c++ -Wl,--dependency-file=CMakeFiles/lsd.dir/link.d CMakeFiles/lsd.dir/src/main.cpp.o CMakeFiles/lsd.dir/external/glad/src/glad.c.o CMakeFiles/lsd.dir/src/tty.cpp.o CMakeFiles/lsd.dir/src/lsd_pty.cpp.o -o lsd  -lglfw /usr/lib/libGL.so /usr/lib/libfreetype.so

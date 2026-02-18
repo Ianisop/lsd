@@ -1,0 +1,5 @@
+/home/somethingfishy/Documents/lsd/build/CMakeFiles/lsd.dir
+/home/somethingfishy/Documents/lsd/build/CMakeFiles/echo_test.dir
+/home/somethingfishy/Documents/lsd/build/CMakeFiles/test.dir
+/home/somethingfishy/Documents/lsd/build/CMakeFiles/edit_cache.dir
+/home/somethingfishy/Documents/lsd/build/CMakeFiles/rebuild_cache.dir
