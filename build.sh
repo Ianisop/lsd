@@ -2,10 +2,10 @@
 cd build
 cmake .. -DCMAKE_EXPORT_COMPILE_COMMANDS=1
 make
-cp ../src/shader.vert .
-cp ../src/shader.frag .
-cp ../src/bg.frag .
-cp ../src/bg.vert .
+cp ../src/shaders/shader.vert .
+cp ../src/shaders/shader.frag .
+cp ../src/shaders/bg.frag .
+cp ../src/shaders/bg.vert .
 
 cp ../src/fonts/JetBrainsMono-Bold.ttf .
 cp ../src/fonts/JetBrainsMono-Italic.ttf .

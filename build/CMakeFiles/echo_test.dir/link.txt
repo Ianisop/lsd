@@ -1,1 +1,0 @@
-/usr/bin/c++ -Wl,--dependency-file=CMakeFiles/echo_test.dir/link.d CMakeFiles/echo_test.dir/tests/echo_test.cpp.o -o echo_test

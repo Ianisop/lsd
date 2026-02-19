@@ -1,0 +1,36 @@
+#pragma once
+#include <deque>
+#include <iostream>
+#include "glm/vec3.hpp"
+
+namespace LSD::Types
+{
+    enum class EscState { Normal, Esc, CSI, OSC };
+    
+    struct AnsiState {
+        EscState    state = EscState::Normal;
+        std::string param_buf;
+        glm::vec3   fg{0.f, 0.8f, 0.6f}, bg{0.f, 0.f, 0.f};
+        bool        bold = false, italic = false;
+    };
+
+    struct Cell {
+    char      ch     = ' ';
+    glm::vec3 fg{1.f, 1.f, 1.f};
+    glm::vec3 bg{0.f, 0.f, 0.f};
+    bool      bold = false, italic = false;
+    };
+
+    // ─── Terminal state ───────────────────────────────────────────────────────────
+    struct TermState {
+        std::vector<std::vector<Cell>> grid;
+        int cols = 80, rows = 24, cur_col = 0, cur_row = 0;
+        std::deque<std::vector<Cell>> scrollback;
+        static constexpr int MAX_SCROLLBACK = 5000;
+    };
+
+    struct Glyph {
+        float u0, v0, u1, v1;
+        int   width, height, bearingX, bearingY, advance;
+    };
+}
