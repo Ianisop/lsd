@@ -1,5 +1,6 @@
 #pragma once
 #include <iostream>
+
 #include <glm/common.hpp>
 #include "lsd_pty.h"
 // DON'T include csi_parser.h here - it causes circular includes
@@ -13,47 +14,47 @@
 
 namespace LSD
 {
-    // Constants (keep static)
-    static const int WINDOW_WIDTH  = 800;
-    static const int WINDOW_HEIGHT = 600;
-    static const int FONT_SIZE_MIN = 8;
-    static const int FONT_SIZE_MAX = 72;
-    static const int ATLAS_WIDTH  = 512;
-    static const int ATLAS_HEIGHT = 512;
-    
-    // Variables that need to be shared (extern)
-    extern std::string WINDOW_TITLE;
-    extern int FONT_SIZE;
-    extern std::mutex g_lock;
-    extern Types::TermState g_term;  // This is the key declaration
-    extern std::atomic<bool> g_dirty;
-    extern int g_scroll_offset;
-    extern PTY pty;
-    extern int g_fbWidth, g_fbHeight;
-    extern int glyphWidth, glyphHeight;
-    extern Types::AnsiState g_ansi;
-    
-    // OpenGL stuff
-    extern GLuint g_termProgram, g_termVAO, g_termVBO;
-    extern std::vector<float> g_verts;
-    extern GLuint g_bgProgram, g_bgVAO, g_bgVBO;
-    extern GLint g_bgTimeLoc, g_bgResLoc;
-    
-    // Font stuff
-    extern FT_Library g_ft;
-    extern FT_Face g_face, g_bold_face, g_italic_face, g_bold_italic_face;
-    extern GLuint g_atlasTex[4];
-    extern std::map<char, Types::Glyph> g_glyphs[4];
-    extern unsigned char g_atlasPx[4][ATLAS_WIDTH * ATLAS_HEIGHT];
-    
-    // Function declarations
-    void load_glyphs();
-    void upload_atlases();
-    void build_terminal_vertices(std::vector<float> &verts, int W, int H);
-    void upload_vbo();
-    bool cursor_visible();
-    void grid_scroll_up_locked();
-    void grid_resize_locked();
-    void grid_newline_locked();
-    void grid_put_locked(char c);
-}
+// Constants (keep static)
+static const int WINDOW_WIDTH = 800;
+static const int WINDOW_HEIGHT = 600;
+static const int FONT_SIZE_MIN = 8;
+static const int FONT_SIZE_MAX = 72;
+static const int ATLAS_WIDTH = 512;
+static const int ATLAS_HEIGHT = 512;
+
+// Variables that need to be shared (extern)
+extern std::string WINDOW_TITLE;
+extern int FONT_SIZE;
+extern std::mutex lock;
+extern Types::TermState terminal_state;// This is the key declaration
+extern std::atomic<bool> dirt_flag;
+extern int scroll_offset;
+extern PTY pty;
+extern int g_fbWidth, g_fbHeight;
+extern int glyph_width, glyph_height;
+extern Types::AnsiState ansi_state;
+
+// OpenGL stuff
+extern GLuint g_terminal_program, g_terminal_VAO, g_terminal_VBO;
+extern std::vector<float> g_vertices;
+extern GLuint g_background_program, g_background_VAO, g_background_VBO;
+extern GLint g_background_time_loc, g_background_res_Loc;
+
+// Font stuff
+extern FT_Library font_library;
+extern FT_Face font_normal_face, font_bold_face, font_italic_face, font_bold_italic_face;
+extern GLuint atlas_textures[4];
+extern std::map<char, Types::Glyph> glyphs[4];
+extern unsigned char atlas_px[4][ATLAS_WIDTH * ATLAS_HEIGHT];
+
+// Function declarations
+void loadGylphs();
+void uploadAtlases();
+void buildTerminalVertices(std::vector<float> &verts, int W, int H);
+void uploadVbo();
+bool cursorVisible();
+void gridScrollUpLocked();
+void gridResizeLocked();
+void gridNewlineLocked();
+void gridPutLocked(char c);
+}// namespace LSD

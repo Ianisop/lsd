@@ -17,19 +17,21 @@ AlwaysBreakBeforeMultilineStrings: true
 AlwaysBreakTemplateDeclarations: false
 BinPackArguments: false
 BinPackParameters: false
+SortIncludes: false
+
 BraceWrapping:
   AfterClass: true
-  AfterControlStatement: false
-  AfterEnum: false
+  AfterControlStatement: true
+  AfterEnum: true
   AfterFunction: true
-  AfterNamespace: false
-  AfterObjCDeclaration: false
+  AfterNamespace: true
+  AfterObjCDeclaration: true
   AfterStruct: true
-  AfterUnion: false
-  BeforeCatch: false
-  BeforeElse: false
-  IndentBraces: false
-  SplitEmptyFunction: false
+  AfterUnion: true
+  BeforeCatch: true
+  BeforeElse: true
+  IndentBraces: true
+  SplitEmptyFunction: true
   SplitEmptyNamespace: true
   SplitEmptyRecord: true
 BreakAfterJavaFieldAnnotations: true
@@ -55,14 +57,6 @@ ForEachMacros:
 - foreach
 - Q_FOREACH
 - BOOST_FOREACH
-IncludeCategories:
-- Priority: 2
-  Regex: ^"(llvm|llvm-c|clang|clang-c)/
-- Priority: 3
-  Regex: ^(<|"(gtest|gmock|isl|json)/)
-- Priority: 1
-  Regex: .*
-IncludeIsMainRegex: (Test)?$
 IndentCaseLabels: false
 IndentWidth: 2
 IndentWrappedFunctionNames: true
@@ -79,7 +73,6 @@ ObjCSpaceAfterProperty: true
 ObjCSpaceBeforeProtocolList: false
 PointerAlignment: Right
 ReflowComments: true
-SortIncludes: true
 SortUsingDeclarations: false
 SpaceAfterCStyleCast: false
 SpaceAfterTemplateKeyword: false
