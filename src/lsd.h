@@ -21,6 +21,7 @@ static const int FONT_SIZE_MIN = 8;
 static const int FONT_SIZE_MAX = 72;
 static const int ATLAS_WIDTH = 512;
 static const int ATLAS_HEIGHT = 512;
+static const int MAX_FPS = 240;
 
 // Variables that need to be shared (extern)
 extern std::string WINDOW_TITLE;
@@ -33,6 +34,8 @@ extern PTY pty;
 extern int g_fbWidth, g_fbHeight;
 extern int glyph_width, glyph_height;
 extern Types::AnsiState ansi_state;
+extern double delta_time;
+
 
 // OpenGL stuff
 extern GLuint g_terminal_program, g_terminal_VAO, g_terminal_VBO;

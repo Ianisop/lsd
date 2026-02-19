@@ -1,3 +1,5 @@
+#include <chrono>
+#include <ctime>
 #include <glad/glad.h>
 #include "lsd.h"
 #include "lsd_pty.h"
@@ -5,6 +7,7 @@
 #include "parse/osc_parser.h"
 #include "types/lsd_types.h"
 #include <GLFW/glfw3.h>
+#include <bits/stdc++.h>
 #include <algorithm>
 #include <atomic>
 #include <cstring>
@@ -35,6 +38,8 @@ int g_fbWidth = LSD::WINDOW_WIDTH;
 int g_fbHeight = LSD::WINDOW_HEIGHT;
 int glyph_width = 0;
 int glyph_height = 0;
+
+double delta_time = 0;
 
 LSD::Types::AnsiState ansi_state;
 
@@ -267,12 +272,34 @@ void gridPutLocked(char c)
   ++col;
 }
 
-void test_status_bar()
+using time_point = std::chrono::system_clock::time_point;
+std::string serializeTimePoint(const time_point &time, const std::string &format)
 {
-  for (Types::Cell &cell : terminal_state.status_bar)
+  std::time_t tt = std::chrono::system_clock::to_time_t(time);
+  std::tm tm = *std::localtime(&tt);
+  // std::tm tm = *std::localtime(&tt); //Locale time-zone, usually UTC by default.
+  std::stringstream ss;
+  ss << std::put_time(&tm, format.c_str());
+  return ss.str();
+}
+
+void fill_status_bar()
+{
+  auto time = std::chrono::system_clock().now();
+  std::string label = serializeTimePoint(time, "%Y-%d-%m %H:%M:%S");
+  std::string delta_time_label = std::to_string(delta_time);
+
+  for (int i = 0; i < terminal_state.status_bar.size(); i++)
     {
-      cell.bg = { 1, 1, 1 };
-      cell.ch = '2';
+      for (int k = 0; k < label.size(); k++) { terminal_state.status_bar[k].ch = label[k]; }
+      for (int l = terminal_state.status_bar.size(); l < delta_time_label.size(); l--)
+        {
+          terminal_state.status_bar[l].ch = delta_time_label[l];
+        }
+
+
+      terminal_state.status_bar[i].bg = { 1, 1, 1 };
+      terminal_state.status_bar[i].fg = { 0, 0, 0 };
     }
 }
 
@@ -992,7 +1019,8 @@ int main()
 
   while (!glfwWindowShouldClose(win))
     {
-      LSD::test_status_bar();
+      auto frame_start_time = glfwGetTime();
+      LSD::fill_status_bar();
       if (LSD::dirt_flag.exchange(false))
         {
           LSD::buildTerminalVertices(LSD::g_vertices, LSD::g_fbWidth, LSD::g_fbHeight);
@@ -1036,6 +1064,19 @@ int main()
 
       glfwSwapBuffers(win);
       glfwPollEvents();
+      const double target_frame_time = 1.0 / LSD::MAX_FPS;
+      double frame_end = glfwGetTime();
+      double frame_time = frame_end - frame_start_time;
+
+      double remaining = target_frame_time - frame_time;
+
+      if (remaining > 0.0) { std::this_thread::sleep_for(std::chrono::duration<double>(remaining)); }
+
+      // FINAL timestamp AFTER sleep
+      double frame_final = glfwGetTime();
+      LSD::delta_time = frame_final - frame_start_time;
+
+      printf("%d\n", (int)(1.0 / LSD::delta_time));
     }
 
   LSD::pty.stop();
