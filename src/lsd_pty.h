@@ -51,7 +51,7 @@ public:
         dup2(sfd, 2);
         if (sfd > 2) close(sfd);
         close(master_fd);
-        // Do NOT modify termios/ECHO here — the original bug that made
+        // Do NOT modify termios/ECHO here, the original bug that made
         // typing invisible. Kernel line discipline handles echo in cooked
         // mode; raw-mode programs manage it themselves.
         setenv("TERM", "xterm-256color", 1);

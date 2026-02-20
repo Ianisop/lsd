@@ -2,6 +2,7 @@
 #include <ctime>
 #include <glad/glad.h>
 #include "lsd.h"
+#include "clip.h"
 #include "lsd_pty.h"
 #include "parse/csi_parser.h"
 #include "parse/osc_parser.h"
@@ -39,12 +40,17 @@ int g_fbHeight = LSD::WINDOW_HEIGHT;
 int glyph_width = 0;
 int glyph_height = 0;
 
+
+bool is_chaining_nano_exit = false;
+
 double delta_time = 0;
 const double target_frame_time = 1.0 / LSD::MAX_FPS;
 double frame_start_time = 0.0;
 double frame_end_time = 0.0;
 
 LSD::Types::AnsiState ansi_state;
+
+std::vector<LSD::Types::CopiedChar> clipboard;
 
 GLuint g_terminal_program = 0;
 GLuint g_terminal_vao = 0;
@@ -257,7 +263,7 @@ void gridScrollUpLocked()
   LSD::terminal_state.grid[LSD::terminal_state.rows - 1].assign(LSD::terminal_state.cols, LSD::Types::Cell{});
 
   // Cursor stays where it is (should be at bottom row when this is called from newline)
-  printf("SCROLL UP: Cursor at row %d\n", LSD::terminal_state.cur_row);
+  // printf("SCROLL UP: Cursor at row %d\n", LSD::terminal_state.cur_row);
 }
 
 void gridNewlineLocked()
@@ -290,7 +296,7 @@ void gridNewlineLocked()
       LSD::terminal_state.cur_row++;
     }
 
-  printf("NEWLINE: ROWS: %i | CURSOR: %i\n", LSD::terminal_state.rows, LSD::terminal_state.cur_row);
+  // printf("NEWLINE: ROWS: %i | CURSOR: %i\n", LSD::terminal_state.rows, LSD::terminal_state.cur_row);
 }
 
 
@@ -537,7 +543,7 @@ void buildTerminalVertices(std::vector<float> &verts, int W, int H)
         {
           const LSD::Types::Cell &cell = snap[row][col];
           glm::vec3 fg = cell.fg;
-          glm::vec3 bg = cell.bg;
+          glm::vec3 bg = cell.selected ? glm::vec3(1, 1, 1) : cell.bg;
 
           float x0 = col * cellW;
           float y0 = row * cellH;
@@ -803,15 +809,53 @@ void framebuffer_size_callback(GLFWwindow *, int w, int h)
 static void key_callback(GLFWwindow *win, int key, int, int action, int mods)
 {
   if (action != GLFW_PRESS && action != GLFW_REPEAT) return;
-  if (key == GLFW_KEY_ESCAPE)
-    {
-      glfwSetWindowShouldClose(win, GL_TRUE);
-      return;
-    }
+
   if (LSD::scroll_offset != 0)
     {
       LSD::scroll_offset = 0;
       LSD::dirt_flag = true;
+    }
+  if ((mods & GLFW_MOD_SHIFT) && (mods & GLFW_MOD_CONTROL))
+    {
+      switch (key)
+        {
+          // copy to clipboard and revert cells
+          case GLFW_KEY_C: {
+            std::string s;
+            for (auto &copied : clipboard)
+              {
+                s += copied.ch;
+                terminal_state.grid[copied.old_grid_position.x][copied.old_grid_position.y].selected = false;
+              }
+            clip::set_text(s);
+            return;
+          }
+        }
+    }
+
+  // select via shift and arrow keys
+  if (mods & GLFW_MOD_SHIFT)
+    {
+      switch (key)
+        {
+          case GLFW_KEY_LEFT: {
+            int x = terminal_state.cur_col - 1;
+            int y = terminal_state.cur_row;
+            auto &cell = terminal_state.grid[y][x];
+            cell.selected = true;
+
+            clipboard.insert(clipboard.begin(), { cell.ch, { y, x } });
+            break;
+          }
+          case GLFW_KEY_RIGHT: {
+            if (clipboard.empty()) break;
+
+            auto pos = clipboard.front().old_grid_position;
+            terminal_state.grid[pos.x][pos.y].selected = false;
+            clipboard.erase(clipboard.begin());
+            break;
+          }
+        }
     }
   if (mods & GLFW_MOD_CONTROL)
     {
@@ -840,6 +884,11 @@ static void key_callback(GLFWwindow *win, int key, int, int action, int mods)
           case GLFW_KEY_X: {
             char *v = "\x18";
             LSD::pty.write(v, 1);
+            return;
+          }
+          case GLFW_KEY_T: {
+            char v = 0x14;
+            LSD::pty.write(&v, 1);
             return;
           }
         case GLFW_KEY_EQUAL:
@@ -1028,6 +1077,7 @@ int main()
       std::cerr << "Failed to load terminal shaders\n";
       return -1;
     }
+
 
   // Background shader falls back to clear color
   LSD::g_background_program = LSD::loadShaders("bg.vert", "bg.frag");

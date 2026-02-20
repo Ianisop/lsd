@@ -31,6 +31,14 @@ FetchContent_Declare(
 )
 FetchContent_MakeAvailable(glm)
 
+# ---- CLIP ----
+FetchContent_Declare(
+    clip
+    GIT_REPOSITORY https://github.com/dacap/clip
+    GIT_TAG v1.13
+)
+FetchContent_MakeAvailable(clip)
+
 # ---- Executable ----
 add_executable(lsd
     src/lsd.cpp
@@ -50,6 +58,7 @@ target_include_directories(lsd PRIVATE
     external/glad/include
     src/
     ${glm_SOURCE_DIR}
+    ${clip_SOURCE_DIR}
 )
 
 target_link_libraries(lsd
@@ -57,6 +66,7 @@ target_link_libraries(lsd
     glfw
     OpenGL::GL
     Freetype::Freetype
+    clip
 )
 
 # Add pthread on Linux

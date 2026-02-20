@@ -4,6 +4,7 @@
 #include <iostream>
 #include <vector>
 #include "glm/vec3.hpp"
+#include "glm/vec2.hpp"
 
 namespace LSD::Types
 {
@@ -23,12 +24,18 @@ struct AnsiState
   bool bold = false, italic = false;
 };
 
+struct CopiedChar
+{
+  char ch = ' ';
+  glm::vec2 old_grid_position{ 0, 0 };
+};
+
 struct Cell
 {
   char ch = ' ';
   glm::vec3 fg{ 1.f, 1.f, 1.f };
   glm::vec3 bg{ 0.f, 0.f, 0.f };
-  bool bold = false, italic = false;
+  bool bold = false, italic = false, selected = false;
 };
 
 // Terminal state

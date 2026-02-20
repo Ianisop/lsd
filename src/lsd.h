@@ -3,11 +3,12 @@
 
 #include <glm/common.hpp>
 #include "lsd_pty.h"
-// DON'T include csi_parser.h here - it causes circular includes
+// DONT include csi_parser.h here, it causes circular includes
 #include "types/lsd_types.h"
 #include <GLFW/glfw3.h>
 #include <mutex>
 #include <atomic>
+#include "clip.h"
 #include <map>
 #include <ft2build.h>
 #include FT_FREETYPE_H
