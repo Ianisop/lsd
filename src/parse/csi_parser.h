@@ -6,16 +6,16 @@
 #include <algorithm>
 #include <glm/common.hpp>
 
-// Forward declare what we need from LSD namespace
+
 namespace LSD
 {
 namespace Types
 {
-  struct TermState;// Forward declaration
+  struct TerminalState;// Forward declaration
 }
 
 // Declare the global variables and functions we need
-extern Types::TermState terminal_state;
+extern Types::TerminalState terminal_state;
 void gridScrollUpLocked();
 }// namespace LSD
 
@@ -138,7 +138,7 @@ static void process_csi_locked(const std::string &params, char fb)
         }
       break;
     case 'S':
-      for (int i = 0; i < P(0, 1); ++i) gridScrollUpLocked();// Now should be found
+      for (int i = 0; i < P(0, 1); ++i) gridScrollUpLocked();
       break;
     case 'T':
       for (int i = 0; i < P(0, 1); ++i)

@@ -29,7 +29,7 @@ std::string WINDOW_TITLE = "lsd";
 int FONT_SIZE = 18;
 
 std::mutex lock;
-LSD::Types::TermState terminal_state;
+LSD::Types::TerminalState terminal_state;
 std::atomic<bool> dirt_flag{ false };
 int scroll_offset = 0;
 PTY pty;
@@ -69,7 +69,7 @@ std::map<char, LSD::Types::Glyph> glyphs[4];
 
 unsigned char atlas_px[4][LSD::ATLAS_WIDTH * LSD::ATLAS_HEIGHT];
 
-// ─── Shader helpers ───────────────────────────────────────────────────────────
+// Shader helpers
 static std::string loadFile(const std::string &path)
 {
   std::ifstream f(path);
@@ -99,7 +99,7 @@ static GLuint compileShader(GLenum type, const char *src)
   return s;
 }
 
-// Returns 0 if either file is missing/fails — caller must check
+// Returns 0 if either file is missing/fails - caller must check
 static GLuint loadShaders(const std::string &vpath, const std::string &fpath)
 {
   std::string vsrc = loadFile(vpath), fsrc = loadFile(fpath);
@@ -123,7 +123,7 @@ static GLuint loadShaders(const std::string &vpath, const std::string &fpath)
   return p;
 }
 
-// ─── Atlas ────────────────────────────────────────────────────────────────────
+// Atlas
 static void buildAtlas(FT_Face face, std::map<char, LSD::Types::Glyph> &out, unsigned char *px)
 {
   if (!face) return;
@@ -195,52 +195,113 @@ void uploadAtlases()
     }
 }
 
-// ─── Grid helpers (call with g_lock held) ─────────────────────────────────────
+// Grid helpers (call with g_lock held)
 void gridResizeLocked()
 {
-  int nc = std::max(1, LSD::g_fbWidth / std::max(LSD::glyph_width, 1));
-  int nr = std::max(1, LSD::g_fbHeight / std::max(LSD::glyph_height, 1));
+  if (LSD::glyph_width == 0 || LSD::glyph_height == 0) return;
+
+  // Get the actual line height from the font (includes spacing)
+  int lineHeight = LSD::font_normal_face->size->metrics.height >> 6;
+
+  // Calculate available rows for terminal content (excluding status bar)
+  // Reserve one line height for status bar at the bottom
+  int available_height = LSD::g_fbHeight - lineHeight;
+  int nc = std::max(1, LSD::g_fbWidth / LSD::glyph_width);
+  int nr = std::max(1, available_height / lineHeight);
+
   bool empty = LSD::terminal_state.grid.empty();
   if (!empty && nc == LSD::terminal_state.cols && nr == LSD::terminal_state.rows) return;
+
   auto old = LSD::terminal_state.grid;
   int oc = LSD::terminal_state.cols, or_ = LSD::terminal_state.rows;
+
   LSD::terminal_state.cols = nc;
   LSD::terminal_state.rows = nr;
   LSD::terminal_state.grid.assign(nr, std::vector<LSD::Types::Cell>(nc));
+
   if (!empty)
-    for (int r = 0; r < std::min(or_, nr); ++r)
-      for (int c = 0; c < std::min(oc, nc); ++c) LSD::terminal_state.grid[r][c] = old[r][c];
+    {
+      for (int r = 0; r < std::min(or_, nr); ++r)
+        {
+          for (int c = 0; c < std::min(oc, nc); ++c) { LSD::terminal_state.grid[r][c] = old[r][c]; }
+        }
+    }
+
+  // Ensure cursor is within bounds
   LSD::terminal_state.cur_col = std::clamp(LSD::terminal_state.cur_col, 0, nc - 1);
   LSD::terminal_state.cur_row = std::clamp(LSD::terminal_state.cur_row, 0, nr - 1);
-  std::cout << "Grid " << nc << "x" << nr << "\n";
+
+  std::cout << "Grid " << nc << "x" << nr << " (with status bar at bottom)" << "\n";
+  printf(
+    "FB Height: %d, Line Height: %d, Available: %d, Rows: %d\n", LSD::g_fbHeight, lineHeight, available_height, nr);
 
   terminal_state.status_bar.assign(terminal_state.cols, Types::Cell{});
-  printf("STATUS BAR: %li \n", terminal_state.status_bar.size());
 }
 
 void gridScrollUpLocked()
 {
+  if (LSD::terminal_state.grid.empty()) return;
+
+  // Move top line to scrollback
   LSD::terminal_state.scrollback.push_back(LSD::terminal_state.grid.front());
-  if ((int)LSD::terminal_state.scrollback.size() > LSD::Types::TermState::MAX_SCROLLBACK)
+  if ((int)LSD::terminal_state.scrollback.size() > LSD::Types::TerminalState::MAX_SCROLLBACK)
     LSD::terminal_state.scrollback.pop_front();
-  LSD::terminal_state.grid.erase(LSD::terminal_state.grid.begin());
-  LSD::terminal_state.grid.emplace_back(LSD::terminal_state.cols);
+
+  // Shift all rows up
+  for (int r = 0; r < LSD::terminal_state.rows - 1; r++)
+    {
+      LSD::terminal_state.grid[r] = std::move(LSD::terminal_state.grid[r + 1]);
+    }
+
+  // Clear the last row
+  LSD::terminal_state.grid[LSD::terminal_state.rows - 1].assign(LSD::terminal_state.cols, LSD::Types::Cell{});
+
+  // Cursor stays where it is (should be at bottom row when this is called from newline)
+  printf("SCROLL UP: Cursor at row %d\n", LSD::terminal_state.cur_row);
 }
 
 void gridNewlineLocked()
 {
   LSD::terminal_state.cur_col = 0;
-  if (++LSD::terminal_state.cur_row >= LSD::terminal_state.rows)
+
+  // If we're at the bottom row, scroll the content up
+  if (LSD::terminal_state.cur_row == LSD::terminal_state.rows - 1)
     {
-      gridScrollUpLocked();
+      // Scroll the entire grid up
+      LSD::terminal_state.scrollback.push_back(LSD::terminal_state.grid.front());
+      if ((int)LSD::terminal_state.scrollback.size() > LSD::Types::TerminalState::MAX_SCROLLBACK)
+        LSD::terminal_state.scrollback.pop_front();
+
+      // Shift all rows up
+      for (int r = 0; r < LSD::terminal_state.rows - 1; r++)
+        {
+          LSD::terminal_state.grid[r] = std::move(LSD::terminal_state.grid[r + 1]);
+        }
+
+      // Clear the last row
+      LSD::terminal_state.grid[LSD::terminal_state.rows - 1].assign(LSD::terminal_state.cols, LSD::Types::Cell{});
+
+      // Cursor stays at bottom row
       LSD::terminal_state.cur_row = LSD::terminal_state.rows - 1;
     }
+  else
+    {
+      // Just move to next row
+      LSD::terminal_state.cur_row++;
+    }
+
+  printf("NEWLINE: ROWS: %i | CURSOR: %i\n", LSD::terminal_state.rows, LSD::terminal_state.cur_row);
 }
+
 
 void gridPutLocked(char c)
 {
-  int &col = LSD::terminal_state.cur_col, &row = LSD::terminal_state.cur_row;
-  const int COLS = LSD::terminal_state.cols, ROWS = LSD::terminal_state.rows;
+  int &col = LSD::terminal_state.cur_col;
+  int &row = LSD::terminal_state.cur_row;
+  const int COLS = LSD::terminal_state.cols;
+  const int ROWS = LSD::terminal_state.rows;
+
+  // Handle control characters first
   switch (c)
     {
     case '\n':
@@ -250,7 +311,7 @@ void gridPutLocked(char c)
       col = 0;
       return;
     case '\t':
-      col = std::min((col / 8 + 1) * 8, COLS - 1);
+      col = std::min(((col / 8) + 1) * 8, COLS - 1);
       return;
     case '\b':
       if (col > 0) --col;
@@ -258,22 +319,39 @@ void gridPutLocked(char c)
     default:
       break;
     }
+
+  // Skip other control characters
   if (c < 0x20) return;
+
+  // Handle line wrapping
   if (col >= COLS)
     {
       col = 0;
-      if (++row >= ROWS)
+      // Move to next row (this will handle scrolling if needed)
+      if (row == ROWS - 1)
         {
-          gridScrollUpLocked();
-          row = ROWS - 1;
+          // At bottom row - need to scroll
+          LSD::gridScrollUpLocked();
+          // row stays at ROWS - 1
+        }
+      else
+        {
+          row++;
         }
     }
-  if (row < 0 || row >= (int)LSD::terminal_state.grid.size()) return;
-  if (col < 0 || col >= (int)LSD::terminal_state.grid[row].size()) return;
+
+  // Validate indices
+  if (row < 0 || row >= ROWS) return;
+  if (col < 0 || col >= COLS) return;
+
+  // Place the character
   LSD::terminal_state.grid[row][col] =
     LSD::Types::Cell{ c, LSD::ansi_state.fg, LSD::ansi_state.bg, LSD::ansi_state.bold, LSD::ansi_state.italic };
+
+  // Move to next column
   ++col;
 }
+
 
 using time_point = std::chrono::system_clock::time_point;
 std::string serializeTimePoint(const time_point &time, const std::string &format)
@@ -391,6 +469,13 @@ void buildTerminalVertices(std::vector<float> &verts, int W, int H)
   float cellW = (float)LSD::glyph_width;
   float cellH = (float)lineHeight;
 
+  // Calculate the total height used by terminal rows
+  int terminalHeight = LSD::terminal_state.rows * cellH;
+
+  // Status bar starts right after the terminal content
+  float statusY0 = terminalHeight;
+  float statusY1 = H;
+
   auto ndcX = [W](float px) { return px / W * 2.f - 1.f; };
   auto ndcY = [H](float py) { return 1.f - py / H * 2.f; };
 
@@ -400,7 +485,8 @@ void buildTerminalVertices(std::vector<float> &verts, int W, int H)
 
   // Snapshot under lock
   std::vector<std::vector<LSD::Types::Cell>> snap;
-  int cursorRow = 0, cursorCol = 0;
+  int cursorRow = -1;
+  int cursorCol = 0;
   LSD::Types::Cell cursorCell;
 
   {
@@ -412,29 +498,37 @@ void buildTerminalVertices(std::vector<float> &verts, int W, int H)
       {
         snap = LSD::terminal_state.grid;
         cursorRow = LSD::terminal_state.cur_row;
+        cursorCol = LSD::terminal_state.cur_col;
       }
     else
       {
         int sbSize = (int)LSD::terminal_state.scrollback.size();
-        int sbStart = sbSize - offset;
+        int sbStart = std::max(0, sbSize - offset);
         int sbRows = std::min(offset, rows);
-        int liveRows = rows - sbRows;
-        snap.reserve(rows);
-        for (int i = sbStart; i < sbStart + sbRows; ++i) snap.push_back(LSD::terminal_state.scrollback[i]);
-        for (int i = 0; i < liveRows; ++i) snap.push_back(LSD::terminal_state.grid[i]);
-        cursorRow = sbRows + LSD::terminal_state.cur_row;
-      }
-    cursorCol = LSD::terminal_state.cur_col;
 
-    int cr = LSD::terminal_state.cur_row;
-    if (cr >= 0 && cr < (int)LSD::terminal_state.grid.size() && cursorCol >= 0
-        && cursorCol < (int)LSD::terminal_state.grid[cr].size())
-      cursorCell = LSD::terminal_state.grid[cr][cursorCol];
+        snap.reserve(rows);
+
+        for (int i = sbStart; i < sbStart + sbRows && i < sbSize; ++i)
+          {
+            snap.push_back(LSD::terminal_state.scrollback[i]);
+          }
+
+        for (int i = 0; i < rows - sbRows; ++i)
+          {
+            if (i < (int)LSD::terminal_state.grid.size()) { snap.push_back(LSD::terminal_state.grid[i]); }
+          }
+
+        cursorRow = -1;
+        cursorCol = -1;
+      }
+
+    if (cursorRow >= 0 && cursorRow < (int)snap.size() && cursorCol >= 0 && cursorCol < (int)snap[cursorRow].size())
+      {
+        cursorCell = snap[cursorRow][cursorCol];
+      }
   }
 
   int visibleRows = (int)snap.size();
-  float statusY0 = H - cellH;// absolute pixel top of status bar
-  float statusY1 = H;// bottom of screen
 
   // Render terminal cells
   for (int row = 0; row < visibleRows; ++row)
@@ -449,6 +543,9 @@ void buildTerminalVertices(std::vector<float> &verts, int W, int H)
           float y0 = row * cellH;
           float x1 = x0 + cellW;
           float y1 = y0 + cellH;
+
+          // Don't render if beyond terminal area
+          if (y1 > terminalHeight) continue;
 
           float nx0 = ndcX(x0), nx1 = ndcX(x1);
           float ny0 = ndcY(y0), ny1 = ndcY(y1);
@@ -511,7 +608,7 @@ void buildTerminalVertices(std::vector<float> &verts, int W, int H)
     statusBar = LSD::terminal_state.status_bar;
   }
 
-  for (int col = 0; col < (int)statusBar.size(); ++col)
+  for (int col = 0; col < (int)statusBar.size() && col < LSD::terminal_state.cols; ++col)
     {
       const LSD::Types::Cell &cell = statusBar[col];
       glm::vec3 fg = cell.fg;
@@ -524,6 +621,7 @@ void buildTerminalVertices(std::vector<float> &verts, int W, int H)
       float ny0 = ndcY(statusY0), ny1 = ndcY(statusY1);
       glm::vec3 dummy{ 0, 0, 0 };
 
+      // Status bar background
       if ((bg.r + bg.g + bg.b) > 0.01f)
         {
           emit(nx0, ny0, 0, 0, bg, dummy, 0, 96.f);
@@ -571,80 +669,84 @@ void buildTerminalVertices(std::vector<float> &verts, int W, int H)
       emit(ngx0, ngy1, g.u0, g.v1, fg, bg, 1, sI);
     }
 
-  // Cursor (live view only)
-  if (LSD::cursorVisible() && LSD::scroll_offset == 0)
+  // Cursor (only in live view)
+  if (LSD::cursorVisible() && LSD::scroll_offset == 0 && cursorRow >= 0 && cursorRow < LSD::terminal_state.rows)
     {
       float x0 = cursorCol * cellW;
       float y0 = cursorRow * cellH;
       float x1 = x0 + cellW;
       float y1 = y0 + cellH;
 
-      float nx0 = ndcX(x0), nx1 = ndcX(x1);
-      float ny0 = ndcY(y0), ny1 = ndcY(y1);
-
-      glm::vec3 white{ 1, 1, 1 }, dummy{ 0, 0, 0 };
-
-      // Draw solid white cursor block
-      emit(nx0, ny0, 0, 0, white, dummy, 0, 99.f);
-      emit(nx1, ny0, 0, 0, white, dummy, 0, 99.f);
-      emit(nx1, ny1, 0, 0, white, dummy, 0, 99.f);
-      emit(nx0, ny0, 0, 0, white, dummy, 0, 99.f);
-      emit(nx1, ny1, 0, 0, white, dummy, 0, 99.f);
-      emit(nx0, ny1, 0, 0, white, dummy, 0, 99.f);
-
-      // Cursor glyph
-      char ch = cursorCell.ch;
-      if (ch != ' ' && ch != '\0')
+      // Don't render cursor in status bar area
+      if (y1 <= terminalHeight)
         {
-          int gi = 0;
-          if (cursorCell.bold && cursorCell.italic && LSD::font_bold_italic_face)
-            gi = 3;
-          else if (cursorCell.bold && LSD::font_bold_face)
-            gi = 1;
-          else if (cursorCell.italic && LSD::font_italic_face)
-            gi = 2;
+          float nx0 = ndcX(x0), nx1 = ndcX(x1);
+          float ny0 = ndcY(y0), ny1 = ndcY(y1);
 
-          auto it = LSD::glyphs[gi].find(ch);
-          if (it == LSD::glyphs[gi].end())
-            {
-              it = LSD::glyphs[0].find(ch);
-              gi = 0;
-            }
-          if (it != LSD::glyphs[gi].end())
-            {
-              const LSD::Types::Glyph &g = it->second;
+          glm::vec3 white{ 1, 1, 1 }, dummy{ 0, 0, 0 };
 
-              int ascentG = 0;
-              switch (gi)
+          // Draw solid white cursor block
+          emit(nx0, ny0, 0, 0, white, dummy, 0, 99.f);
+          emit(nx1, ny0, 0, 0, white, dummy, 0, 99.f);
+          emit(nx1, ny1, 0, 0, white, dummy, 0, 99.f);
+          emit(nx0, ny0, 0, 0, white, dummy, 0, 99.f);
+          emit(nx1, ny1, 0, 0, white, dummy, 0, 99.f);
+          emit(nx0, ny1, 0, 0, white, dummy, 0, 99.f);
+
+          // Cursor glyph
+          char ch = cursorCell.ch;
+          if (ch != ' ' && ch != '\0')
+            {
+              int gi = 0;
+              if (cursorCell.bold && cursorCell.italic && LSD::font_bold_italic_face)
+                gi = 3;
+              else if (cursorCell.bold && LSD::font_bold_face)
+                gi = 1;
+              else if (cursorCell.italic && LSD::font_italic_face)
+                gi = 2;
+
+              auto it = LSD::glyphs[gi].find(ch);
+              if (it == LSD::glyphs[gi].end())
                 {
-                case 0:
-                  if (LSD::font_normal_face) ascentG = LSD::font_normal_face->size->metrics.ascender >> 6;
-                  break;
-                case 1:
-                  if (LSD::font_bold_face) ascentG = LSD::font_bold_face->size->metrics.ascender >> 6;
-                  break;
-                case 2:
-                  if (LSD::font_italic_face) ascentG = LSD::font_italic_face->size->metrics.ascender >> 6;
-                  break;
-                case 3:
-                  if (LSD::font_bold_italic_face) ascentG = LSD::font_bold_italic_face->size->metrics.ascender >> 6;
-                  break;
+                  it = LSD::glyphs[0].find(ch);
+                  gi = 0;
                 }
+              if (it != LSD::glyphs[gi].end())
+                {
+                  const LSD::Types::Glyph &g = it->second;
 
-              float gx0 = x0 + g.bearingX;
-              float gy0 = y0 + ascentG - g.bearingY;
-              float gx1 = gx0 + g.width;
-              float gy1 = gy0 + g.height;
+                  int ascentG = 0;
+                  switch (gi)
+                    {
+                    case 0:
+                      if (LSD::font_normal_face) ascentG = LSD::font_normal_face->size->metrics.ascender >> 6;
+                      break;
+                    case 1:
+                      if (LSD::font_bold_face) ascentG = LSD::font_bold_face->size->metrics.ascender >> 6;
+                      break;
+                    case 2:
+                      if (LSD::font_italic_face) ascentG = LSD::font_italic_face->size->metrics.ascender >> 6;
+                      break;
+                    case 3:
+                      if (LSD::font_bold_italic_face) ascentG = LSD::font_bold_italic_face->size->metrics.ascender >> 6;
+                      break;
+                    }
 
-              float ngx0 = ndcX(gx0), ngx1 = ndcX(gx1);
-              float ngy0 = ndcY(gy0), ngy1 = ndcY(gy1);
+                  float gx0 = x0 + g.bearingX;
+                  float gy0 = y0 + ascentG - g.bearingY;
+                  float gx1 = gx0 + g.width;
+                  float gy1 = gy0 + g.height;
 
-              emit(ngx0, ngy0, g.u0, g.v0, white, dummy, 1, 98.f);
-              emit(ngx1, ngy0, g.u1, g.v0, white, dummy, 1, 98.f);
-              emit(ngx1, ngy1, g.u1, g.v1, white, dummy, 1, 98.f);
-              emit(ngx0, ngy0, g.u0, g.v0, white, dummy, 1, 98.f);
-              emit(ngx1, ngy1, g.u1, g.v1, white, dummy, 1, 98.f);
-              emit(ngx0, ngy1, g.u0, g.v1, white, dummy, 1, 98.f);
+                  float ngx0 = ndcX(gx0), ngx1 = ndcX(gx1);
+                  float ngy0 = ndcY(gy0), ngy1 = ndcY(gy1);
+
+                  emit(ngx0, ngy0, g.u0, g.v0, white, dummy, 1, 98.f);
+                  emit(ngx1, ngy0, g.u1, g.v0, white, dummy, 1, 98.f);
+                  emit(ngx1, ngy1, g.u1, g.v1, white, dummy, 1, 98.f);
+                  emit(ngx0, ngy0, g.u0, g.v0, white, dummy, 1, 98.f);
+                  emit(ngx1, ngy1, g.u1, g.v1, white, dummy, 1, 98.f);
+                  emit(ngx0, ngy1, g.u0, g.v1, white, dummy, 1, 98.f);
+                }
             }
         }
     }
@@ -682,6 +784,7 @@ void reload_font_size(int sz)
 }
 
 
+// In framebuffer_size_callback, update the PTY resize:
 void framebuffer_size_callback(GLFWwindow *, int w, int h)
 {
   if (w <= 0 || h <= 0) return;
@@ -692,6 +795,7 @@ void framebuffer_size_callback(GLFWwindow *, int w, int h)
     std::lock_guard<std::mutex> lk(LSD::lock);
     LSD::gridResizeLocked();
   }
+  // PTY should get the terminal content size, not including status bar
   LSD::pty.resize(LSD::terminal_state.cols, LSD::terminal_state.rows);
   LSD::dirt_flag = true;
 }
@@ -887,7 +991,7 @@ void handle_delta_time()
   double frame_final = glfwGetTime();
   LSD::delta_time = frame_final - frame_start_time;
 
-  printf("%d\n", (int)(1.0 / LSD::delta_time));
+  // printf("%d\n", (int)(1.0 / LSD::delta_time));
 }
 
 }// namespace LSD
@@ -1034,6 +1138,7 @@ int main()
   glfwSetCharCallback(win, LSD::char_callback);
   glfwSetScrollCallback(win, LSD::scroll_callback);
   LSD::pty.setReadCallback(LSD::read_callback);
+
   LSD::pty.spawn(LSD::terminal_state.cols, LSD::terminal_state.rows);
 
   static bool lastBlink = false;

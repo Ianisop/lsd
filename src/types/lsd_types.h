@@ -31,12 +31,12 @@ struct Cell
   bool bold = false, italic = false;
 };
 
-// ─── Terminal state ───────────────────────────────────────────────────────────
-struct TermState
+// Terminal state
+struct TerminalState
 {
   std::vector<std::vector<Cell>> grid;
   std::deque<std::vector<Cell>> scrollback;
-  static constexpr int MAX_SCROLLBACK = 5000;
+  static constexpr int MAX_SCROLLBACK = 8000;
   std::vector<Cell> status_bar;
 
   int cols = 80, rows = 24, cur_col = 0, cur_row = 0;

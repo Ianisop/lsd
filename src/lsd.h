@@ -27,7 +27,7 @@ static const int MAX_FPS = 240 + 4;// +4 to adjust for the schedulers bullshit
 extern std::string WINDOW_TITLE;
 extern int FONT_SIZE;
 extern std::mutex lock;
-extern Types::TermState terminal_state;// This is the key declaration
+extern Types::TerminalState terminal_state;
 extern std::atomic<bool> dirt_flag;
 extern int scroll_offset;
 extern PTY pty;
