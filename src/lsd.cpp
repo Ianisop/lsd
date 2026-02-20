@@ -40,6 +40,9 @@ int glyph_width = 0;
 int glyph_height = 0;
 
 double delta_time = 0;
+const double target_frame_time = 1.0 / LSD::MAX_FPS;
+double frame_start_time = 0.0;
+double frame_end_time = 0.0;
 
 LSD::Types::AnsiState ansi_state;
 
@@ -868,6 +871,25 @@ static void scroll_callback(GLFWwindow *, double, double yoff)
   }
   LSD::dirt_flag = true;
 }
+
+void handle_delta_time()
+{
+
+  double frame_end = glfwGetTime();
+
+  double frame_time = frame_end - frame_start_time;
+
+  double remaining = LSD::target_frame_time - frame_time;
+
+  if (remaining > 0.0) { std::this_thread::sleep_for(std::chrono::duration<double>(remaining)); }
+
+  // FINAL timestamp AFTER sleep
+  double frame_final = glfwGetTime();
+  LSD::delta_time = frame_final - frame_start_time;
+
+  printf("%d\n", (int)(1.0 / LSD::delta_time));
+}
+
 }// namespace LSD
 int main()
 {
@@ -898,7 +920,7 @@ int main()
       return -1;
     }
 
-  // ── Background shader (optional — falls back to clear colour) ────────────
+  // Background shader falls back to clear color
   LSD::g_background_program = LSD::loadShaders("bg.vert", "bg.frag");
   if (LSD::g_background_program)
     {
@@ -1019,7 +1041,7 @@ int main()
 
   while (!glfwWindowShouldClose(win))
     {
-      auto frame_start_time = glfwGetTime();
+      LSD::frame_start_time = glfwGetTime();
       LSD::fill_status_bar();
       if (LSD::dirt_flag.exchange(false))
         {
@@ -1064,19 +1086,8 @@ int main()
 
       glfwSwapBuffers(win);
       glfwPollEvents();
-      const double target_frame_time = 1.0 / LSD::MAX_FPS;
-      double frame_end = glfwGetTime();
-      double frame_time = frame_end - frame_start_time;
 
-      double remaining = target_frame_time - frame_time;
-
-      if (remaining > 0.0) { std::this_thread::sleep_for(std::chrono::duration<double>(remaining)); }
-
-      // FINAL timestamp AFTER sleep
-      double frame_final = glfwGetTime();
-      LSD::delta_time = frame_final - frame_start_time;
-
-      printf("%d\n", (int)(1.0 / LSD::delta_time));
+      LSD::handle_delta_time();
     }
 
   LSD::pty.stop();

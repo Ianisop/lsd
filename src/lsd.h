@@ -21,7 +21,7 @@ static const int FONT_SIZE_MIN = 8;
 static const int FONT_SIZE_MAX = 72;
 static const int ATLAS_WIDTH = 512;
 static const int ATLAS_HEIGHT = 512;
-static const int MAX_FPS = 240;
+static const int MAX_FPS = 240 + 4;// +4 to adjust for the schedulers bullshit
 
 // Variables that need to be shared (extern)
 extern std::string WINDOW_TITLE;
