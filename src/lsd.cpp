@@ -837,6 +837,11 @@ static void key_callback(GLFWwindow *win, int key, int, int action, int mods)
             LSD::pty.write(&v, 1);
             return;
           }
+          case GLFW_KEY_X: {
+            char *v = "\x18";
+            LSD::pty.write(v, 1);
+            return;
+          }
         case GLFW_KEY_EQUAL:
         case GLFW_KEY_KP_ADD:
           reload_font_size(LSD::FONT_SIZE + 2);
