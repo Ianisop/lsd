@@ -40,6 +40,8 @@ int g_fbHeight = LSD::WINDOW_HEIGHT;
 int glyph_width = 0;
 int glyph_height = 0;
 
+const char *CLEAR_SCREEN_ANSI = "\x1b[2J\x1b[H";// CLEAR SCREEN AND MOVE CURSOR TO TOP
+
 
 bool is_chaining_nano_exit = false;
 
@@ -789,6 +791,35 @@ void reload_font_size(int sz)
   LSD::dirt_flag = true;
 }
 
+void copy_selected_text()
+{
+  int x = terminal_state.cur_col - 1;
+  int y = terminal_state.cur_row;
+  auto &cell = terminal_state.grid[y][x];
+  cell.selected = true;
+
+  clipboard.insert(clipboard.begin(), { cell.ch, { y, x } });
+}
+
+void copy_selected_text_into_clipboard()
+{
+  std::string s;
+  for (auto &copied : clipboard)
+    {
+      s += copied.ch;
+      terminal_state.grid[copied.old_grid_position.x][copied.old_grid_position.y].selected = false;
+    }
+  clip::set_text(s);
+}
+
+void remove_text_from_selected()
+{
+  if (clipboard.empty()) return;
+
+  auto pos = clipboard.front().old_grid_position;
+  terminal_state.grid[pos.x][pos.y].selected = false;
+  clipboard.erase(clipboard.begin());
+}
 
 // In framebuffer_size_callback, update the PTY resize:
 void framebuffer_size_callback(GLFWwindow *, int w, int h)
@@ -821,164 +852,164 @@ static void key_callback(GLFWwindow *win, int key, int, int action, int mods)
         {
           // copy to clipboard and revert cells
           case GLFW_KEY_C: {
-            std::string s;
-            for (auto &copied : clipboard)
-              {
-                s += copied.ch;
-                terminal_state.grid[copied.old_grid_position.x][copied.old_grid_position.y].selected = false;
-              }
-            clip::set_text(s);
+            copy_selected_text_into_clipboard();
             return;
           }
-        }
-    }
+          // TODO: make this work
+          case GLFW_KEY_V: {
+            std::string paste;
+            clip::get_text(paste);
+            const char *begin = "\x1b[200~";
+            const char *end = "\x1b[201~";
 
-  // select via shift and arrow keys
-  if (mods & GLFW_MOD_SHIFT)
-    {
-      switch (key)
-        {
-          case GLFW_KEY_LEFT: {
-            int x = terminal_state.cur_col - 1;
-            int y = terminal_state.cur_row;
-            auto &cell = terminal_state.grid[y][x];
-            cell.selected = true;
-
-            clipboard.insert(clipboard.begin(), { cell.ch, { y, x } });
-            break;
+            LSD::pty.write(begin, 6);
+            LSD::pty.write(paste.data(), paste.size());
+            LSD::pty.write(end, 6);
           }
-          case GLFW_KEY_RIGHT: {
-            if (clipboard.empty()) break;
-
-            auto pos = clipboard.front().old_grid_position;
-            terminal_state.grid[pos.x][pos.y].selected = false;
-            clipboard.erase(clipboard.begin());
-            break;
-          }
-        }
-    }
-  if (mods & GLFW_MOD_CONTROL)
-    {
-      switch (key)
-        {
-          case GLFW_KEY_C: {
-            char v = 0x03;
-            LSD::pty.write(&v, 1);
-            return;
-          }
-          case GLFW_KEY_D: {
-            char v = 0x04;
-            LSD::pty.write(&v, 1);
-            return;
-          }
-          case GLFW_KEY_L: {
-            char v = 0x0C;
-            LSD::pty.write(&v, 1);
-            return;
-          }
-          case GLFW_KEY_Z: {
-            char v = 0x1A;
-            LSD::pty.write(&v, 1);
-            return;
-          }
-          case GLFW_KEY_X: {
-            char *v = "\x18";
-            LSD::pty.write(v, 1);
-            return;
-          }
-          case GLFW_KEY_T: {
-            char v = 0x14;
-            LSD::pty.write(&v, 1);
-            return;
-          }
-        case GLFW_KEY_EQUAL:
-        case GLFW_KEY_KP_ADD:
-          reload_font_size(LSD::FONT_SIZE + 2);
-          return;
-        case GLFW_KEY_MINUS:
-        case GLFW_KEY_KP_SUBTRACT:
-          reload_font_size(LSD::FONT_SIZE - 2);
-          return;
-        case GLFW_KEY_0:
-        case GLFW_KEY_KP_0:
-          reload_font_size(18);
-          return;
-        default:
           break;
         }
     }
-  if (mods & GLFW_MOD_SUPER)
-    {
-      switch (key)
-        {
-        case GLFW_KEY_EQUAL:
-        case GLFW_KEY_KP_ADD:
-          reload_font_size(LSD::FONT_SIZE + 2);
-          return;
-        case GLFW_KEY_MINUS:
-        case GLFW_KEY_KP_SUBTRACT:
-          reload_font_size(LSD::FONT_SIZE - 2);
-          return;
-        case GLFW_KEY_0:
-        case GLFW_KEY_KP_0:
-          reload_font_size(18);
-          return;
-        default:
+}
+
+// select via shift and arrow keys
+if (mods & GLFW_MOD_SHIFT)
+  {
+    switch (key)
+      {
+        case GLFW_KEY_LEFT: {
+          copy_selected_text();
           break;
         }
+        case GLFW_KEY_RIGHT: {
+          remove_text_from_selected();
+          break;
+        }
+      }
+  }
+
+// this gets filled with cases that i meet in tui apps i use, e.g nano's ultra specific method of exiting
+if (mods & GLFW_MOD_CONTROL)
+  {
+    switch (key)
+      {
+        case GLFW_KEY_C: {
+          char v = 0x03;
+          LSD::pty.write(&v, 1);
+          return;
+        }
+        case GLFW_KEY_D: {
+          char v = 0x04;
+          LSD::pty.write(&v, 1);
+          return;
+        }
+        case GLFW_KEY_L: {
+          char v = 0x0C;
+          LSD::pty.write(&v, 1);
+          return;
+        }
+        case GLFW_KEY_Z: {
+          char v = 0x1A;
+          LSD::pty.write(&v, 1);
+          return;
+        }
+        case GLFW_KEY_X: {
+          char *v = "\x18";
+          LSD::pty.write(v, 1);
+          return;
+        }
+        case GLFW_KEY_T: {
+          char v = 0x14;
+          LSD::pty.write(&v, 1);
+          return;
+        }
+      case GLFW_KEY_EQUAL:
+      case GLFW_KEY_KP_ADD:
+        reload_font_size(LSD::FONT_SIZE + 2);
+        return;
+      case GLFW_KEY_MINUS:
+      case GLFW_KEY_KP_SUBTRACT:
+        reload_font_size(LSD::FONT_SIZE - 2);
+        return;
+      case GLFW_KEY_0:
+      case GLFW_KEY_KP_0:
+        reload_font_size(18);
+        return;
+      default:
+        break;
+      }
+  }
+if (mods & GLFW_MOD_SUPER)
+  {
+    switch (key)
+      {
+      case GLFW_KEY_EQUAL:
+      case GLFW_KEY_KP_ADD:
+        reload_font_size(LSD::FONT_SIZE + 2);
+        return;
+      case GLFW_KEY_MINUS:
+      case GLFW_KEY_KP_SUBTRACT:
+        reload_font_size(LSD::FONT_SIZE - 2);
+        return;
+      case GLFW_KEY_0:
+      case GLFW_KEY_KP_0:
+        reload_font_size(18);
+        return;
+      default:
+        break;
+      }
+  }
+const char *seq = nullptr;
+switch (key)
+  {
+    case GLFW_KEY_ENTER: {
+      const char v[] = "\r";
+      LSD::pty.write(v, 1);
+      return;
     }
-  const char *seq = nullptr;
-  switch (key)
-    {
-      case GLFW_KEY_ENTER: {
-        const char v[] = "\r";
-        LSD::pty.write(v, 1);
-        return;
-      }
-      case GLFW_KEY_BACKSPACE: {
-        const char v[] = "\x7f";
-        LSD::pty.write(v, 1);
-        return;
-      }
-      case GLFW_KEY_TAB: {
-        const char v[] = "\t";
-        LSD::pty.write(v, 1);
-        return;
-      }
-    case GLFW_KEY_UP:
-      seq = "\033[A";
-      break;
-    case GLFW_KEY_DOWN:
-      seq = "\033[B";
-      break;
-    case GLFW_KEY_RIGHT:
-      seq = "\033[C";
-      break;
-    case GLFW_KEY_LEFT:
-      seq = "\033[D";
-      break;
-    case GLFW_KEY_HOME:
-      seq = "\033[H";
-      break;
-    case GLFW_KEY_END:
-      seq = "\033[F";
-      break;
-    case GLFW_KEY_PAGE_UP:
-      seq = "\033[5~";
-      break;
-    case GLFW_KEY_PAGE_DOWN:
-      seq = "\033[6~";
-      break;
-    case GLFW_KEY_DELETE:
-      seq = "\033[3~";
-      break;
-    case GLFW_KEY_INSERT:
-      seq = "\033[2~";
-      break;
-    default:
-      break;
+    case GLFW_KEY_BACKSPACE: {
+      const char v[] = "\x7f";
+      LSD::pty.write(v, 1);
+      return;
     }
-  if (seq) LSD::pty.write(seq, strlen(seq));
+    case GLFW_KEY_TAB: {
+      const char v[] = "\t";
+      LSD::pty.write(v, 1);
+      return;
+    }
+  case GLFW_KEY_UP:
+    seq = "\033[A";
+    break;
+  case GLFW_KEY_DOWN:
+    seq = "\033[B";
+    break;
+  case GLFW_KEY_RIGHT:
+    seq = "\033[C";
+    break;
+  case GLFW_KEY_LEFT:
+    seq = "\033[D";
+    break;
+  case GLFW_KEY_HOME:
+    seq = "\033[H";
+    break;
+  case GLFW_KEY_END:
+    seq = "\033[F";
+    break;
+  case GLFW_KEY_PAGE_UP:
+    seq = "\033[5~";
+    break;
+  case GLFW_KEY_PAGE_DOWN:
+    seq = "\033[6~";
+    break;
+  case GLFW_KEY_DELETE:
+    seq = "\033[3~";
+    break;
+  case GLFW_KEY_INSERT:
+    seq = "\033[2~";
+    break;
+  default:
+    break;
+  }
+if (seq) LSD::pty.write(seq, strlen(seq));
 }
 
 
