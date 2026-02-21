@@ -983,7 +983,7 @@ static void key_callback(GLFWwindow *win, int key, int, int action, int mods)
           return;
         case GLFW_KEY_1:
           current_terminal_state = &terminal_states[0];
-          buildTerminalVertices(g_vertices, g_fbHeight, g_fbWidth);
+          // buildTerminalVertices(g_vertices, g_fbHeight, g_fbWidth);
           LSD::current_pty->setReadCallback(LSD::read_callback);// TODO: find way to unsubscribe maybe
 
           printf("rows=%d grid.size=%zu\n", current_terminal_state->rows, current_terminal_state->grid.size());
@@ -1001,7 +1001,6 @@ static void key_callback(GLFWwindow *win, int key, int, int action, int mods)
               LSD::current_pty->setReadCallback(LSD::read_callback);// TODO: find way to unsubscribe maybe
             }
           gridResizeLocked();
-          buildTerminalVertices(g_vertices, g_fbHeight, g_fbWidth);
           current_terminal_label_data = "[";
           current_terminal_label_data += "2";
           current_terminal_label_data += "]";
@@ -1015,7 +1014,6 @@ static void key_callback(GLFWwindow *win, int key, int, int action, int mods)
               LSD::current_pty->setReadCallback(LSD::read_callback);// TODO: find way to unsubscribe maybe
             }
           gridResizeLocked();
-          buildTerminalVertices(g_vertices, g_fbHeight, g_fbWidth);
           current_terminal_label_data = "[";
           current_terminal_label_data += "3";
           current_terminal_label_data += "]";
