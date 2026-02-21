@@ -27,7 +27,8 @@ jobs:
           libfreetype6-dev \
           xorg-dev \
           wayland-protocols \
-          libwayland-dev
+          libwayland-dev \
+          libxkbcommon-dev
             
           
     - name: build
