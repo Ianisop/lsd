@@ -24,8 +24,17 @@
 #include <unistd.h>
 #include <vector>
 
+
+#ifdef RELEASE_INSTALL_PATH
+std::string asset_path = RELEASE_INSTALL_PATH;
+#else
+std::string asset_path = DEBUG_INSTALL_PATH;
+#endif
+
 namespace LSD
 {
+
+
 std::string WINDOW_TITLE = "lsd";
 int FONT_SIZE = 18;
 
@@ -206,7 +215,6 @@ void uploadAtlases()
     }
 }
 
-// test comment for merge commit :)
 
 // Grid helpers (call with g_lock held)
 void gridResizeLocked()
@@ -1190,7 +1198,7 @@ int main()
   LSD::current_pty->setReadCallback(LSD::read_callback);// TODO: find way to unsubscribe maybe
 
   // ── Terminal shader (required) ───────────────────────────────────────────
-  LSD::g_terminal_program = LSD::loadShaders("shader.vert", "shader.frag");
+  LSD::g_terminal_program = LSD::loadShaders(asset_path + "shaders/shader.vert", asset_path + "shaders/shader.frag");
   if (!LSD::g_terminal_program)
     {
       std::cerr << "Failed to load terminal shaders\n";
@@ -1199,7 +1207,7 @@ int main()
 
 
   // Background shader falls back to clear color
-  LSD::g_background_program = LSD::loadShaders("bg.vert", "bg.frag");
+  LSD::g_background_program = LSD::loadShaders(asset_path + "shaders/bg.vert", asset_path + "shaders/bg.frag");
   if (LSD::g_background_program)
     {
       LSD::g_background_time_loc = glGetUniformLocation(LSD::g_background_program, "uTime");
@@ -1255,14 +1263,16 @@ int main()
       std::cerr << "FT init failed\n";
       return -1;
     }
-  if (FT_New_Face(LSD::font_library, "JetBrainsMono-Medium.ttf", 0, &LSD::font_normal_face))
+  if (FT_New_Face(
+        LSD::font_library, (asset_path + "fonts/JetBrainsMono-Medium.ttf").c_str(), 0, &LSD::font_normal_face))
     {
       std::cerr << "Regular font missing\n";
       return -1;
     }
-  FT_New_Face(LSD::font_library, "JetBrainsMono-Bold.ttf", 0, &LSD::font_bold_face);
-  FT_New_Face(LSD::font_library, "JetBrainsMono-Italic.ttf", 0, &LSD::font_italic_face);
-  FT_New_Face(LSD::font_library, "JetBrainsMono-BoldItalic.ttf", 0, &LSD::font_bold_italic_face);
+  FT_New_Face(LSD::font_library, (asset_path + "fonts/JetBrainsMono-Bold.ttf").c_str(), 0, &LSD::font_bold_face);
+  FT_New_Face(LSD::font_library, (asset_path + "fonts/JetBrainsMono-Italic.ttf").c_str(), 0, &LSD::font_italic_face);
+  FT_New_Face(
+    LSD::font_library, (asset_path + "fonts/JetBrainsMono-BoldItalic.ttf").c_str(), 0, &LSD::font_bold_italic_face);
 
   auto setSize = [](FT_Face f) {
     if (f) FT_Set_Pixel_Sizes(f, 0, (FT_UInt)LSD::FONT_SIZE);
