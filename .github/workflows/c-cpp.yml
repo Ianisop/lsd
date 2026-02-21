@@ -20,7 +20,8 @@ jobs:
       run: |
         mkdir build
         cd build
-        ../build.sh
+        cmake ..
+        make
 
     # ---- compute next incremental tag ----
     - name: Generate next tag
