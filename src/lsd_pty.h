@@ -22,7 +22,6 @@ public:
   PTY() = default;
   ~PTY() { stop(); }
 
-
   bool spawn(int cols = 80, int rows = 24, const char *shell = "/bin/bash")
   {
     master_fd = posix_openpt(O_RDWR | O_NOCTTY);
