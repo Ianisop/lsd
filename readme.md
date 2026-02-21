@@ -23,7 +23,7 @@ It renders terminal text as a real-time graphics workload instead of a tradition
 ## ✦ Install
 
 ```bash
-curl -sSL https://github.com/Ianisop/lsd/blob/main/install.sh | sh
+curl -sSL https://raw.githubusercontent.com/Ianisop/lsd/main/install.sh | sh
 ```
 
 ## ✦ Build
