@@ -18,6 +18,7 @@ jobs:
         
     - name: build
       run: |
+        mkdir build
         cd build
         ../build.sh
 
