@@ -15,7 +15,7 @@ namespace Types
 }
 
 // Declare the global variables and functions we need
-extern Types::TerminalState terminal_state;
+extern Types::TerminalState *current_terminal_state;
 void gridScrollUpLocked();
 }// namespace LSD
 
@@ -43,11 +43,11 @@ static void process_csi_locked(const std::string &params, char fb)
   if (!params.empty() && params[0] == '?') return;
 
   // Now these should be found
-  int &col = terminal_state.cur_col;
-  int &row = terminal_state.cur_row;
-  const int C = terminal_state.cols;
-  const int R = terminal_state.rows;
-  auto &grid = terminal_state.grid;
+  int &col = current_terminal_state->cur_col;
+  int &row = current_terminal_state->cur_row;
+  const int C = current_terminal_state->cols;
+  const int R = current_terminal_state->rows;
+  auto &grid = current_terminal_state->grid;
 
   row = glm::clamp(row, 0, R - 1);
   col = glm::clamp(col, 0, C - 1);

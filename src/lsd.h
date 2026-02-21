@@ -28,10 +28,11 @@ static const int MAX_FPS = 240 + 4;// +4 to adjust for the schedulers bullshit
 extern std::string WINDOW_TITLE;
 extern int FONT_SIZE;
 extern std::mutex lock;
-extern Types::TerminalState terminal_state;
+extern Types::TerminalState *current_terminal_state;
+extern std::vector<LSD::Types::TerminalState> terminal_states;
 extern std::atomic<bool> dirt_flag;
 extern int scroll_offset;
-extern PTY pty;
+extern PTY *current_pty;
 extern int g_fbWidth, g_fbHeight;
 extern int glyph_width, glyph_height;
 extern Types::AnsiState ansi_state;

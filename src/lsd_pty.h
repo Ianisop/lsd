@@ -18,9 +18,10 @@ class PTY
 {
 public:
   using ReadCallback = std::function<void(const char *, size_t)>;
-
+  bool is_started = false;
   PTY() = default;
   ~PTY() { stop(); }
+
 
   bool spawn(int cols = 80, int rows = 24, const char *shell = "/bin/bash")
   {
@@ -37,6 +38,7 @@ public:
     ws.ws_col = (unsigned short)cols;
     ws.ws_row = (unsigned short)rows;
     ioctl(master_fd, TIOCSWINSZ, &ws);
+    kill(child_pid, SIGWINCH);
 
     child_pid = fork();
     if (child_pid < 0) return false;
@@ -60,6 +62,7 @@ public:
       }
     running = true;
     reader = std::thread(&PTY::readerLoop, this);
+    is_started = true;
     return true;
   }
 

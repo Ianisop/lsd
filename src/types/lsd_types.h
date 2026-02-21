@@ -5,6 +5,7 @@
 #include <vector>
 #include "glm/vec3.hpp"
 #include "glm/vec2.hpp"
+#include "lsd_pty.h"
 
 namespace LSD::Types
 {
@@ -39,12 +40,14 @@ struct Cell
 };
 
 // Terminal state
-struct TerminalState
+class TerminalState
 {
+public:
   std::vector<std::vector<Cell>> grid;
   std::deque<std::vector<Cell>> scrollback;
   static constexpr int MAX_SCROLLBACK = 8000;
   std::vector<Cell> status_bar;
+  PTY pty;
 
   int cols = 80, rows = 24, cur_col = 0, cur_row = 0;
 };

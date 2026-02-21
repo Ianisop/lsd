@@ -30,10 +30,13 @@ std::string WINDOW_TITLE = "lsd";
 int FONT_SIZE = 18;
 
 std::mutex lock;
-LSD::Types::TerminalState terminal_state;
+LSD::Types::TerminalState *current_terminal_state;
 std::atomic<bool> dirt_flag{ false };
 int scroll_offset = 0;
-PTY pty;
+PTY *current_pty;
+
+std::vector<LSD::Types::TerminalState> terminal_states(3);
+std::string current_terminal_label_data;
 
 int g_fbWidth = LSD::WINDOW_WIDTH;
 int g_fbHeight = LSD::WINDOW_HEIGHT;
@@ -217,52 +220,53 @@ void gridResizeLocked()
   int nc = std::max(1, LSD::g_fbWidth / LSD::glyph_width);
   int nr = std::max(1, available_height / lineHeight);
 
-  bool empty = LSD::terminal_state.grid.empty();
-  if (!empty && nc == LSD::terminal_state.cols && nr == LSD::terminal_state.rows) return;
+  bool empty = LSD::current_terminal_state->grid.empty();
+  if (!empty && nc == LSD::current_terminal_state->cols && nr == LSD::current_terminal_state->rows) return;
 
-  auto old = LSD::terminal_state.grid;
-  int oc = LSD::terminal_state.cols, or_ = LSD::terminal_state.rows;
+  auto old = LSD::current_terminal_state->grid;
+  int oc = LSD::current_terminal_state->cols, or_ = LSD::current_terminal_state->rows;
 
-  LSD::terminal_state.cols = nc;
-  LSD::terminal_state.rows = nr;
-  LSD::terminal_state.grid.assign(nr, std::vector<LSD::Types::Cell>(nc));
+  LSD::current_terminal_state->cols = nc;
+  LSD::current_terminal_state->rows = nr;
+  LSD::current_terminal_state->grid.assign(nr, std::vector<LSD::Types::Cell>(nc));
 
   if (!empty)
     {
       for (int r = 0; r < std::min(or_, nr); ++r)
         {
-          for (int c = 0; c < std::min(oc, nc); ++c) { LSD::terminal_state.grid[r][c] = old[r][c]; }
+          for (int c = 0; c < std::min(oc, nc); ++c) { LSD::current_terminal_state->grid[r][c] = old[r][c]; }
         }
     }
 
   // Ensure cursor is within bounds
-  LSD::terminal_state.cur_col = std::clamp(LSD::terminal_state.cur_col, 0, nc - 1);
-  LSD::terminal_state.cur_row = std::clamp(LSD::terminal_state.cur_row, 0, nr - 1);
+  LSD::current_terminal_state->cur_col = std::clamp(LSD::current_terminal_state->cur_col, 0, nc - 1);
+  LSD::current_terminal_state->cur_row = std::clamp(LSD::current_terminal_state->cur_row, 0, nr - 1);
 
   std::cout << "Grid " << nc << "x" << nr << " (with status bar at bottom)" << "\n";
   printf(
     "FB Height: %d, Line Height: %d, Available: %d, Rows: %d\n", LSD::g_fbHeight, lineHeight, available_height, nr);
 
-  terminal_state.status_bar.assign(terminal_state.cols, Types::Cell{});
+  current_terminal_state->status_bar.assign(current_terminal_state->cols, Types::Cell{});
 }
 
 void gridScrollUpLocked()
 {
-  if (LSD::terminal_state.grid.empty()) return;
+  if (LSD::current_terminal_state->grid.empty()) return;
 
   // Move top line to scrollback
-  LSD::terminal_state.scrollback.push_back(LSD::terminal_state.grid.front());
-  if ((int)LSD::terminal_state.scrollback.size() > LSD::Types::TerminalState::MAX_SCROLLBACK)
-    LSD::terminal_state.scrollback.pop_front();
+  LSD::current_terminal_state->scrollback.push_back(LSD::current_terminal_state->grid.front());
+  if ((int)LSD::current_terminal_state->scrollback.size() > LSD::Types::TerminalState::MAX_SCROLLBACK)
+    LSD::current_terminal_state->scrollback.pop_front();
 
   // Shift all rows up
-  for (int r = 0; r < LSD::terminal_state.rows - 1; r++)
+  for (int r = 0; r < LSD::current_terminal_state->rows - 1; r++)
     {
-      LSD::terminal_state.grid[r] = std::move(LSD::terminal_state.grid[r + 1]);
+      LSD::current_terminal_state->grid[r] = std::move(LSD::current_terminal_state->grid[r + 1]);
     }
 
   // Clear the last row
-  LSD::terminal_state.grid[LSD::terminal_state.rows - 1].assign(LSD::terminal_state.cols, LSD::Types::Cell{});
+  LSD::current_terminal_state->grid[LSD::current_terminal_state->rows - 1].assign(
+    LSD::current_terminal_state->cols, LSD::Types::Cell{});
 
   // Cursor stays where it is (should be at bottom row when this is called from newline)
   // printf("SCROLL UP: Cursor at row %d\n", LSD::terminal_state.cur_row);
@@ -270,32 +274,33 @@ void gridScrollUpLocked()
 
 void gridNewlineLocked()
 {
-  LSD::terminal_state.cur_col = 0;
+  LSD::current_terminal_state->cur_col = 0;
 
   // If we're at the bottom row, scroll the content up
-  if (LSD::terminal_state.cur_row == LSD::terminal_state.rows - 1)
+  if (LSD::current_terminal_state->cur_row == LSD::current_terminal_state->rows - 1)
     {
       // Scroll the entire grid up
-      LSD::terminal_state.scrollback.push_back(LSD::terminal_state.grid.front());
-      if ((int)LSD::terminal_state.scrollback.size() > LSD::Types::TerminalState::MAX_SCROLLBACK)
-        LSD::terminal_state.scrollback.pop_front();
+      LSD::current_terminal_state->scrollback.push_back(LSD::current_terminal_state->grid.front());
+      if ((int)LSD::current_terminal_state->scrollback.size() > LSD::Types::TerminalState::MAX_SCROLLBACK)
+        LSD::current_terminal_state->scrollback.pop_front();
 
       // Shift all rows up
-      for (int r = 0; r < LSD::terminal_state.rows - 1; r++)
+      for (int r = 0; r < LSD::current_terminal_state->rows - 1; r++)
         {
-          LSD::terminal_state.grid[r] = std::move(LSD::terminal_state.grid[r + 1]);
+          LSD::current_terminal_state->grid[r] = std::move(LSD::current_terminal_state->grid[r + 1]);
         }
 
       // Clear the last row
-      LSD::terminal_state.grid[LSD::terminal_state.rows - 1].assign(LSD::terminal_state.cols, LSD::Types::Cell{});
+      LSD::current_terminal_state->grid[LSD::current_terminal_state->rows - 1].assign(
+        LSD::current_terminal_state->cols, LSD::Types::Cell{});
 
       // Cursor stays at bottom row
-      LSD::terminal_state.cur_row = LSD::terminal_state.rows - 1;
+      LSD::current_terminal_state->cur_row = LSD::current_terminal_state->rows - 1;
     }
   else
     {
       // Just move to next row
-      LSD::terminal_state.cur_row++;
+      LSD::current_terminal_state->cur_row++;
     }
 
   // printf("NEWLINE: ROWS: %i | CURSOR: %i\n", LSD::terminal_state.rows, LSD::terminal_state.cur_row);
@@ -304,10 +309,10 @@ void gridNewlineLocked()
 
 void gridPutLocked(char c)
 {
-  int &col = LSD::terminal_state.cur_col;
-  int &row = LSD::terminal_state.cur_row;
-  const int COLS = LSD::terminal_state.cols;
-  const int ROWS = LSD::terminal_state.rows;
+  int &col = LSD::current_terminal_state->cur_col;
+  int &row = LSD::current_terminal_state->cur_row;
+  const int COLS = LSD::current_terminal_state->cols;
+  const int ROWS = LSD::current_terminal_state->rows;
 
   // Handle control characters first
   switch (c)
@@ -353,7 +358,7 @@ void gridPutLocked(char c)
   if (col < 0 || col >= COLS) return;
 
   // Place the character
-  LSD::terminal_state.grid[row][col] =
+  LSD::current_terminal_state->grid[row][col] =
     LSD::Types::Cell{ c, LSD::ansi_state.fg, LSD::ansi_state.bg, LSD::ansi_state.bold, LSD::ansi_state.italic };
 
   // Move to next column
@@ -372,23 +377,60 @@ std::string serializeTimePoint(const time_point &time, const std::string &format
   return ss.str();
 }
 
+void write_segment(std::vector<LSD::Types::Cell> &bar,
+  int start,
+  int width,
+  const std::string &text,
+  int align)// 0=left,1=center,2=right
+{
+  if (width <= 0) return;
+
+  int text_len = (int)text.size();
+  int offset = 0;
+
+  if (align == 1)// center
+    offset = (width - text_len) / 2;
+  else if (align == 2)// right
+    offset = width - text_len;
+
+  offset = std::max(0, offset);
+
+  for (int i = 0; i < width; ++i)
+    {
+      int bar_index = start + i;
+      if (bar_index >= (int)bar.size()) break;
+
+      int text_index = i - offset;
+
+      if (text_index >= 0 && text_index < text_len)
+        bar[bar_index].ch = text[text_index];
+      else
+        bar[bar_index].ch = ' ';
+    }
+}
+
 void fill_status_bar()
 {
-  auto time = std::chrono::system_clock().now();
-  std::string label = serializeTimePoint(time, "%Y-%d-%m %H:%M:%S");
-  std::string delta_time_label = std::to_string(delta_time);
+  auto &bar = current_terminal_state->status_bar;
 
-  for (int i = 0; i < terminal_state.status_bar.size(); i++)
+  int W = bar.size();
+  int splits = 3;
+  int seg_w = W / splits;
+
+  std::string left = serializeTimePoint(std::chrono::system_clock::now(), "%Y-%d-%m %H:%M:%S");
+
+  std::string *middle = &current_terminal_label_data;
+
+  std::string right = std::to_string(delta_time) + " ms";
+
+  write_segment(bar, 0, seg_w, left, 0);// left aligned
+  write_segment(bar, seg_w, seg_w, *middle, 1);// centered
+  write_segment(bar, seg_w * 2, W - seg_w * 2, right, 2);// right aligned
+
+  for (auto &c : bar)
     {
-      for (int k = 0; k < label.size(); k++) { terminal_state.status_bar[k].ch = label[k]; }
-      for (int l = terminal_state.status_bar.size(); l < delta_time_label.size(); l--)
-        {
-          terminal_state.status_bar[l].ch = delta_time_label[l];
-        }
-
-
-      terminal_state.status_bar[i].bg = { 1, 1, 1 };
-      terminal_state.status_bar[i].fg = { 0, 0, 0 };
+      c.bg = { 1, 1, 1 };
+      c.fg = { 0, 0, 0 };
     }
 }
 
@@ -418,14 +460,15 @@ void read_callback(const char *msg, size_t size)
             LSD::ansi_state.state = LSD::Types::EscState::OSC;
           else if (byte == 'c')
             {
-              for (auto &r : LSD::terminal_state.grid) r.assign(LSD::terminal_state.cols, LSD::Types::Cell{});
-              LSD::terminal_state.cur_row = 0;
-              LSD::terminal_state.cur_col = 0;
+              for (auto &r : LSD::current_terminal_state->grid)
+                r.assign(LSD::current_terminal_state->cols, LSD::Types::Cell{});
+              LSD::current_terminal_state->cur_row = 0;
+              LSD::current_terminal_state->cur_col = 0;
               LSD::ansi_state.state = LSD::Types::EscState::Normal;
             }
           else if (byte == 'M')
             {
-              if (LSD::terminal_state.cur_row > 0) --LSD::terminal_state.cur_row;
+              if (LSD::current_terminal_state->cur_row > 0) --LSD::current_terminal_state->cur_row;
               LSD::ansi_state.state = LSD::Types::EscState::Normal;
             }
           else
@@ -478,7 +521,7 @@ void buildTerminalVertices(std::vector<float> &verts, int W, int H)
   float cellH = (float)lineHeight;
 
   // Calculate the total height used by terminal rows
-  int terminalHeight = LSD::terminal_state.rows * cellH;
+  int terminalHeight = LSD::current_terminal_state->rows * cellH;
 
   // Status bar starts right after the terminal content
   float statusY0 = terminalHeight;
@@ -499,18 +542,18 @@ void buildTerminalVertices(std::vector<float> &verts, int W, int H)
 
   {
     std::lock_guard<std::mutex> lk(LSD::lock);
-    int rows = LSD::terminal_state.rows;
-    int offset = std::clamp(LSD::scroll_offset, 0, (int)LSD::terminal_state.scrollback.size());
+    int rows = LSD::current_terminal_state->rows;
+    int offset = std::clamp(LSD::scroll_offset, 0, (int)LSD::current_terminal_state->scrollback.size());
 
     if (offset == 0)
       {
-        snap = LSD::terminal_state.grid;
-        cursorRow = LSD::terminal_state.cur_row;
-        cursorCol = LSD::terminal_state.cur_col;
+        snap = LSD::current_terminal_state->grid;
+        cursorRow = LSD::current_terminal_state->cur_row;
+        cursorCol = LSD::current_terminal_state->cur_col;
       }
     else
       {
-        int sbSize = (int)LSD::terminal_state.scrollback.size();
+        int sbSize = (int)LSD::current_terminal_state->scrollback.size();
         int sbStart = std::max(0, sbSize - offset);
         int sbRows = std::min(offset, rows);
 
@@ -518,12 +561,15 @@ void buildTerminalVertices(std::vector<float> &verts, int W, int H)
 
         for (int i = sbStart; i < sbStart + sbRows && i < sbSize; ++i)
           {
-            snap.push_back(LSD::terminal_state.scrollback[i]);
+            snap.push_back(LSD::current_terminal_state->scrollback[i]);
           }
 
         for (int i = 0; i < rows - sbRows; ++i)
           {
-            if (i < (int)LSD::terminal_state.grid.size()) { snap.push_back(LSD::terminal_state.grid[i]); }
+            if (i < (int)LSD::current_terminal_state->grid.size())
+              {
+                snap.push_back(LSD::current_terminal_state->grid[i]);
+              }
           }
 
         cursorRow = -1;
@@ -613,10 +659,10 @@ void buildTerminalVertices(std::vector<float> &verts, int W, int H)
   std::vector<LSD::Types::Cell> statusBar;
   {
     std::lock_guard<std::mutex> lk(LSD::lock);
-    statusBar = LSD::terminal_state.status_bar;
+    statusBar = LSD::current_terminal_state->status_bar;
   }
 
-  for (int col = 0; col < (int)statusBar.size() && col < LSD::terminal_state.cols; ++col)
+  for (int col = 0; col < (int)statusBar.size() && col < LSD::current_terminal_state->cols; ++col)
     {
       const LSD::Types::Cell &cell = statusBar[col];
       glm::vec3 fg = cell.fg;
@@ -678,7 +724,8 @@ void buildTerminalVertices(std::vector<float> &verts, int W, int H)
     }
 
   // Cursor (only in live view)
-  if (LSD::cursorVisible() && LSD::scroll_offset == 0 && cursorRow >= 0 && cursorRow < LSD::terminal_state.rows)
+  if (LSD::cursorVisible() && LSD::scroll_offset == 0 && cursorRow >= 0
+      && cursorRow < LSD::current_terminal_state->rows)
     {
       float x0 = cursorCol * cellW;
       float y0 = cursorRow * cellH;
@@ -787,15 +834,15 @@ void reload_font_size(int sz)
     std::lock_guard<std::mutex> lk(LSD::lock);
     LSD::gridResizeLocked();
   }
-  LSD::pty.resize(LSD::terminal_state.cols, LSD::terminal_state.rows);
+  LSD::current_pty->resize(LSD::current_terminal_state->cols, LSD::current_terminal_state->rows);
   LSD::dirt_flag = true;
 }
 
 void copy_selected_text()
 {
-  int x = terminal_state.cur_col - 1;
-  int y = terminal_state.cur_row;
-  auto &cell = terminal_state.grid[y][x];
+  int x = current_terminal_state->cur_col - 1;
+  int y = current_terminal_state->cur_row;
+  auto &cell = current_terminal_state->grid[y][x];
   cell.selected = true;
 
   clipboard.insert(clipboard.begin(), { cell.ch, { y, x } });
@@ -807,7 +854,7 @@ void copy_selected_text_into_clipboard()
   for (auto &copied : clipboard)
     {
       s += copied.ch;
-      terminal_state.grid[copied.old_grid_position.x][copied.old_grid_position.y].selected = false;
+      current_terminal_state->grid[copied.old_grid_position.x][copied.old_grid_position.y].selected = false;
     }
   clip::set_text(s);
 }
@@ -817,7 +864,7 @@ void remove_text_from_selected()
   if (clipboard.empty()) return;
 
   auto pos = clipboard.front().old_grid_position;
-  terminal_state.grid[pos.x][pos.y].selected = false;
+  current_terminal_state->grid[pos.x][pos.y].selected = false;
   clipboard.erase(clipboard.begin());
 }
 
@@ -833,7 +880,7 @@ void framebuffer_size_callback(GLFWwindow *, int w, int h)
     LSD::gridResizeLocked();
   }
   // PTY should get the terminal content size, not including status bar
-  LSD::pty.resize(LSD::terminal_state.cols, LSD::terminal_state.rows);
+  LSD::current_pty->resize(LSD::current_terminal_state->cols, LSD::current_terminal_state->rows);
   LSD::dirt_flag = true;
 }
 
@@ -862,154 +909,191 @@ static void key_callback(GLFWwindow *win, int key, int, int action, int mods)
             const char *begin = "\x1b[200~";
             const char *end = "\x1b[201~";
 
-            LSD::pty.write(begin, 6);
-            LSD::pty.write(paste.data(), paste.size());
-            LSD::pty.write(end, 6);
+            LSD::current_pty->write(begin, 6);
+            LSD::current_pty->write(paste.data(), paste.size());
+            LSD::current_pty->write(end, 6);
           }
           break;
         }
     }
-}
 
-// select via shift and arrow keys
-if (mods & GLFW_MOD_SHIFT)
-  {
-    switch (key)
-      {
-        case GLFW_KEY_LEFT: {
-          copy_selected_text();
+
+  // select via shift and arrow keys
+  if (mods & GLFW_MOD_SHIFT)
+    {
+      switch (key)
+        {
+          case GLFW_KEY_LEFT: {
+            copy_selected_text();
+            break;
+          }
+          case GLFW_KEY_RIGHT: {
+            remove_text_from_selected();
+            break;
+          }
+        }
+    }
+
+  // this gets filled with cases that i meet in tui apps i use, e.g nano's ultra specific method of exiting
+  if (mods & GLFW_MOD_CONTROL)
+    {
+      switch (key)
+        {
+          case GLFW_KEY_C: {
+            char v = 0x03;
+            LSD::current_pty->write(&v, 1);
+            return;
+          }
+          case GLFW_KEY_D: {
+            char v = 0x04;
+            LSD::current_pty->write(&v, 1);
+            return;
+          }
+          case GLFW_KEY_L: {
+            char v = 0x0C;
+            LSD::current_pty->write(&v, 1);
+            return;
+          }
+          case GLFW_KEY_Z: {
+            char v = 0x1A;
+            LSD::current_pty->write(&v, 1);
+            return;
+          }
+          case GLFW_KEY_X: {
+            char *v = "\x18";
+            LSD::current_pty->write(v, 1);
+            return;
+          }
+          case GLFW_KEY_T: {
+            char v = 0x14;
+            LSD::current_pty->write(&v, 1);
+            return;
+          }
+        case GLFW_KEY_EQUAL:
+        case GLFW_KEY_KP_ADD:
+          reload_font_size(LSD::FONT_SIZE + 2);
+          return;
+        case GLFW_KEY_MINUS:
+        case GLFW_KEY_KP_SUBTRACT:
+          reload_font_size(LSD::FONT_SIZE - 2);
+          return;
+        case GLFW_KEY_0:
+        case GLFW_KEY_KP_0:
+          reload_font_size(18);
+          return;
+        case GLFW_KEY_1:
+          current_terminal_state = &terminal_states[0];
+          buildTerminalVertices(g_vertices, g_fbHeight, g_fbWidth);
+          LSD::current_pty->setReadCallback(LSD::read_callback);// TODO: find way to unsubscribe maybe
+
+          printf("rows=%d grid.size=%zu\n", current_terminal_state->rows, current_terminal_state->grid.size());
+          current_terminal_label_data = "[";
+          current_terminal_label_data += "1";
+          current_terminal_label_data += "]";
+
+          return;
+        case GLFW_KEY_2:
+          current_terminal_state = &terminal_states[1];
+          if (!current_terminal_state->pty.is_started)
+            {
+              current_pty = &current_terminal_state->pty;
+              current_pty->spawn();
+              LSD::current_pty->setReadCallback(LSD::read_callback);// TODO: find way to unsubscribe maybe
+            }
+          gridResizeLocked();
+          buildTerminalVertices(g_vertices, g_fbHeight, g_fbWidth);
+          current_terminal_label_data = "[";
+          current_terminal_label_data += "2";
+          current_terminal_label_data += "]";
+          return;
+        case GLFW_KEY_3:
+          current_terminal_state = &terminal_states[2];
+          if (!current_terminal_state->pty.is_started)
+            {
+              current_pty = &current_terminal_state->pty;
+              current_pty->spawn();
+              LSD::current_pty->setReadCallback(LSD::read_callback);// TODO: find way to unsubscribe maybe
+            }
+          gridResizeLocked();
+          buildTerminalVertices(g_vertices, g_fbHeight, g_fbWidth);
+          current_terminal_label_data = "[";
+          current_terminal_label_data += "3";
+          current_terminal_label_data += "]";
+          return;
+        }
+    }
+  if (mods & GLFW_MOD_SUPER)
+    {
+      switch (key)
+        {
+        case GLFW_KEY_EQUAL:
+        case GLFW_KEY_KP_ADD:
+          reload_font_size(LSD::FONT_SIZE + 2);
+          return;
+        case GLFW_KEY_MINUS:
+        case GLFW_KEY_KP_SUBTRACT:
+          reload_font_size(LSD::FONT_SIZE - 2);
+          return;
+        case GLFW_KEY_0:
+        case GLFW_KEY_KP_0:
+          reload_font_size(18);
+          return;
+        default:
           break;
         }
-        case GLFW_KEY_RIGHT: {
-          remove_text_from_selected();
-          break;
-        }
-      }
-  }
-
-// this gets filled with cases that i meet in tui apps i use, e.g nano's ultra specific method of exiting
-if (mods & GLFW_MOD_CONTROL)
-  {
-    switch (key)
-      {
-        case GLFW_KEY_C: {
-          char v = 0x03;
-          LSD::pty.write(&v, 1);
-          return;
-        }
-        case GLFW_KEY_D: {
-          char v = 0x04;
-          LSD::pty.write(&v, 1);
-          return;
-        }
-        case GLFW_KEY_L: {
-          char v = 0x0C;
-          LSD::pty.write(&v, 1);
-          return;
-        }
-        case GLFW_KEY_Z: {
-          char v = 0x1A;
-          LSD::pty.write(&v, 1);
-          return;
-        }
-        case GLFW_KEY_X: {
-          char *v = "\x18";
-          LSD::pty.write(v, 1);
-          return;
-        }
-        case GLFW_KEY_T: {
-          char v = 0x14;
-          LSD::pty.write(&v, 1);
-          return;
-        }
-      case GLFW_KEY_EQUAL:
-      case GLFW_KEY_KP_ADD:
-        reload_font_size(LSD::FONT_SIZE + 2);
-        return;
-      case GLFW_KEY_MINUS:
-      case GLFW_KEY_KP_SUBTRACT:
-        reload_font_size(LSD::FONT_SIZE - 2);
-        return;
-      case GLFW_KEY_0:
-      case GLFW_KEY_KP_0:
-        reload_font_size(18);
-        return;
-      default:
-        break;
-      }
-  }
-if (mods & GLFW_MOD_SUPER)
-  {
-    switch (key)
-      {
-      case GLFW_KEY_EQUAL:
-      case GLFW_KEY_KP_ADD:
-        reload_font_size(LSD::FONT_SIZE + 2);
-        return;
-      case GLFW_KEY_MINUS:
-      case GLFW_KEY_KP_SUBTRACT:
-        reload_font_size(LSD::FONT_SIZE - 2);
-        return;
-      case GLFW_KEY_0:
-      case GLFW_KEY_KP_0:
-        reload_font_size(18);
-        return;
-      default:
-        break;
-      }
-  }
-const char *seq = nullptr;
-switch (key)
-  {
-    case GLFW_KEY_ENTER: {
-      const char v[] = "\r";
-      LSD::pty.write(v, 1);
-      return;
     }
-    case GLFW_KEY_BACKSPACE: {
-      const char v[] = "\x7f";
-      LSD::pty.write(v, 1);
-      return;
+  const char *seq = nullptr;
+  switch (key)
+    {
+      case GLFW_KEY_ENTER: {
+        const char v[] = "\r";
+        LSD::current_pty->write(v, 1);
+        return;
+      }
+      case GLFW_KEY_BACKSPACE: {
+        const char v[] = "\x7f";
+        LSD::current_pty->write(v, 1);
+        return;
+      }
+      case GLFW_KEY_TAB: {
+        const char v[] = "\t";
+        LSD::current_pty->write(v, 1);
+        return;
+      }
+    case GLFW_KEY_UP:
+      seq = "\033[A";
+      break;
+    case GLFW_KEY_DOWN:
+      seq = "\033[B";
+      break;
+    case GLFW_KEY_RIGHT:
+      seq = "\033[C";
+      break;
+    case GLFW_KEY_LEFT:
+      seq = "\033[D";
+      break;
+    case GLFW_KEY_HOME:
+      seq = "\033[H";
+      break;
+    case GLFW_KEY_END:
+      seq = "\033[F";
+      break;
+    case GLFW_KEY_PAGE_UP:
+      seq = "\033[5~";
+      break;
+    case GLFW_KEY_PAGE_DOWN:
+      seq = "\033[6~";
+      break;
+    case GLFW_KEY_DELETE:
+      seq = "\033[3~";
+      break;
+    case GLFW_KEY_INSERT:
+      seq = "\033[2~";
+      break;
+    default:
+      break;
     }
-    case GLFW_KEY_TAB: {
-      const char v[] = "\t";
-      LSD::pty.write(v, 1);
-      return;
-    }
-  case GLFW_KEY_UP:
-    seq = "\033[A";
-    break;
-  case GLFW_KEY_DOWN:
-    seq = "\033[B";
-    break;
-  case GLFW_KEY_RIGHT:
-    seq = "\033[C";
-    break;
-  case GLFW_KEY_LEFT:
-    seq = "\033[D";
-    break;
-  case GLFW_KEY_HOME:
-    seq = "\033[H";
-    break;
-  case GLFW_KEY_END:
-    seq = "\033[F";
-    break;
-  case GLFW_KEY_PAGE_UP:
-    seq = "\033[5~";
-    break;
-  case GLFW_KEY_PAGE_DOWN:
-    seq = "\033[6~";
-    break;
-  case GLFW_KEY_DELETE:
-    seq = "\033[3~";
-    break;
-  case GLFW_KEY_INSERT:
-    seq = "\033[2~";
-    break;
-  default:
-    break;
-  }
-if (seq) LSD::pty.write(seq, strlen(seq));
+  if (seq) LSD::current_pty->write(seq, strlen(seq));
 }
 
 
@@ -1033,7 +1117,7 @@ static void char_callback(GLFWwindow *, unsigned int cp)
   if (cp < 0x80)
     {
       char c = (char)cp;
-      LSD::pty.write(&c, 1);
+      LSD::current_pty->write(&c, 1);
     }
 }
 
@@ -1044,7 +1128,7 @@ static void scroll_callback(GLFWwindow *, double, double yoff)
   int max_offset;
   {
     std::lock_guard<std::mutex> lk(LSD::lock);
-    max_offset = (int)LSD::terminal_state.scrollback.size();
+    max_offset = (int)LSD::current_terminal_state->scrollback.size();
   }
   if (max_offset == 0)
     {
@@ -1100,6 +1184,10 @@ int main()
   glEnable(GL_BLEND);
   glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
   glClearColor(0.05f, 0.05f, 0.05f, 1.f);
+
+  LSD::current_terminal_state = &LSD::terminal_states[0];
+  LSD::current_pty = &LSD::current_terminal_state->pty;
+  LSD::current_pty->setReadCallback(LSD::read_callback);// TODO: find way to unsubscribe maybe
 
   // ── Terminal shader (required) ───────────────────────────────────────────
   LSD::g_terminal_program = LSD::loadShaders("shader.vert", "shader.frag");
@@ -1223,9 +1311,8 @@ int main()
   glfwSetKeyCallback(win, LSD::key_callback);
   glfwSetCharCallback(win, LSD::char_callback);
   glfwSetScrollCallback(win, LSD::scroll_callback);
-  LSD::pty.setReadCallback(LSD::read_callback);
 
-  LSD::pty.spawn(LSD::terminal_state.cols, LSD::terminal_state.rows);
+  LSD::current_pty->spawn(LSD::current_terminal_state->cols, LSD::current_terminal_state->rows);
 
   static bool lastBlink = false;
 
@@ -1281,7 +1368,7 @@ int main()
       LSD::handle_delta_time();
     }
 
-  LSD::pty.stop();
+  LSD::current_pty->stop();
   if (LSD::font_normal_face) FT_Done_Face(LSD::font_normal_face);
   if (LSD::font_bold_face) FT_Done_Face(LSD::font_bold_face);
   if (LSD::font_italic_face) FT_Done_Face(LSD::font_italic_face);
