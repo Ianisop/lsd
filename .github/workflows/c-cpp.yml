@@ -1,23 +1,62 @@
-name: C/C++ CI
+name: C/C++ CI + Release
 
 on:
   push:
-    branches: [ "main" ]
-  pull_request:
-    branches: [ "main" ]
+    branches: ["main"]
+
+permissions:
+  contents: write   # REQUIRED to push tags + create releases
 
 jobs:
   build:
-
     runs-on: ubuntu-latest
 
     steps:
     - uses: actions/checkout@v4
+      with:
+        fetch-depth: 0   # needed to read tags
+
     - name: configure
       run: ./configure
+
     - name: make
-      run: make
+      run: make -j$(nproc)
+
     - name: make check
       run: make check
-    - name: make distcheck
-      run: make distcheck
+
+    - name: make dist
+      run: make dist
+
+    # ---- compute next incremental tag ----
+    - name: Generate next tag
+      id: tag
+      run: |
+        git fetch --tags
+
+        LAST_TAG=$(git tag -l "v0.0.*" --sort=-v:refname | head -n1)
+
+        if [ -z "$LAST_TAG" ]; then
+          NEXT_TAG="v0.0.1"
+        else
+          NUM=${LAST_TAG##*.}
+          NEXT_TAG="v0.0.$((NUM+1))"
+        fi
+
+        echo "tag=$NEXT_TAG" >> $GITHUB_OUTPUT
+
+    # ---- create and push tag ----
+    - name: Push tag
+      run: |
+        git tag ${{ steps.tag.outputs.tag }}
+        git push origin ${{ steps.tag.outputs.tag }}
+
+    # ---- create GitHub release ----
+    - name: Create Release
+      uses: softprops/action-gh-release@v2
+      with:
+        tag_name: ${{ steps.tag.outputs.tag }}
+        files: |
+          *.tar.gz
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
