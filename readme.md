@@ -1,3 +1,7 @@
+<p align="center">
+  <img src="src/lsd.png">
+</p>
+
 <h1 align="center">lsd</h1>
 <p align="center"><b>Lightweight Shader-Driven Terminal Emulator</b></p>
 

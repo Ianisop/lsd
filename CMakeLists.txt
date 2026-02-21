@@ -69,6 +69,14 @@ target_link_libraries(lsd
     clip
 )
 
+# ---- Define install path macro ----
+if(CMAKE_BUILD_TYPE MATCHES Release)
+    target_compile_definitions(lsd PRIVATE RELEASE_INSTALL_PATH=\"/usr/local/share/lsd/\")
+else()
+    target_compile_definitions(lsd PRIVATE DEBUG_INSTALL_PATH=\"./build/\")
+endif()
+
+
 # Add pthread on Linux
 if (UNIX AND NOT APPLE)
     target_link_libraries(lsd PRIVATE pthread)
