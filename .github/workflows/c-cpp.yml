@@ -25,7 +25,9 @@ jobs:
           libgl1-mesa-dev \
           libglu1-mesa-dev \
           libfreetype6-dev \
-          xorg-dev
+          xorg-dev \
+          wayland-scanner
+            
           
     - name: build
       run: |
