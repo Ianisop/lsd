@@ -21,8 +21,6 @@ jobs:
         mkdir build
         cd build
         ../build.sh
-        cd ..
-        zip release.zip build/lsd build/*.vert build/*.frag build/*.ttf
 
     # ---- compute next incremental tag ----
     - name: Generate next tag
@@ -53,7 +51,7 @@ jobs:
       uses: softprops/action-gh-release@v2
       with:
         tag_name: ${{ steps.tag.outputs.tag }}
-        files: release.zip   # upload your zip directly
+        files: install.sh   # upload your zip directly
       env:
         GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
       
