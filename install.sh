@@ -7,6 +7,9 @@ INSTALL_BIN="/usr/local/bin/$APP_NAME"
 INSTALL_SHARE="/usr/local/share/$APP_NAME"
 DESKTOP_FILE="/usr/share/applications/$APP_NAME.desktop"
 
+git clone "https://github.com/Ianisop/lsd"
+cd lsd
+
 # Build
 mkdir -p "$BUILD_DIR"
 cd "$BUILD_DIR"
@@ -41,5 +44,7 @@ Terminal=false
 Type=Application
 Categories=Utility;TerminalEmulator;
 EOF
+
+rm -rf lsd/
 
 echo "Installation complete. You can run '$APP_NAME' from your application menu or terminal."

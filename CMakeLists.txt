@@ -1,4 +1,4 @@
-cmake_minimum_required(VERSION 4.0)
+cmake_minimum_required(VERSION 3.5)
 project(lsd)
 
 set(CMAKE_POLICY_VERSION_MINIMUM 3.5)
@@ -73,7 +73,7 @@ target_link_libraries(lsd
 if(CMAKE_BUILD_TYPE MATCHES Release)
     target_compile_definitions(lsd PRIVATE RELEASE_INSTALL_PATH=\"/usr/local/share/lsd/\")
 else()
-    target_compile_definitions(lsd PRIVATE DEBUG_INSTALL_PATH=\"./build/\")
+    target_compile_definitions(lsd PRIVATE DEBUG_INSTALL_PATH=\".//\") # Asuming usage of build.sh
 endif()
 
 

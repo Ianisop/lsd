@@ -2,7 +2,7 @@
 cd build
 mkdir shaders
 mkdir fonts
-cmake .. -DCMAKE_EXPORT_COMPILE_COMMANDS=1
+cmake .. -DCMAKE_EXPORT_COMPILE_COMMANDS=1 -DCMAKE_BUILD_TYPE=Debug
 make
 
 cp ../src/shaders/shader.vert shaders/
@@ -14,5 +14,6 @@ cp ../src/fonts/JetBrainsMono-Bold.ttf fonts/
 cp ../src/fonts/JetBrainsMono-Italic.ttf fonts
 cp ../src/fonts/JetBrainsMono-BoldItalic.ttf fonts/
 cp ../src/fonts/JetBrainsMono-Medium.ttf fonts/
+
 
 ./lsd

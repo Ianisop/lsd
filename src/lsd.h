@@ -29,7 +29,7 @@ extern std::string WINDOW_TITLE;
 extern int FONT_SIZE;
 extern std::mutex lock;
 extern Types::TerminalState *current_terminal_state;
-extern std::vector<LSD::Types::TerminalState> terminal_states;
+extern LSD::Types::TerminalState terminal_states[];
 extern std::atomic<bool> dirt_flag;
 extern int scroll_offset;
 extern PTY *current_pty;

@@ -33,8 +33,6 @@ std::string asset_path = DEBUG_INSTALL_PATH;
 
 namespace LSD
 {
-
-
 std::string WINDOW_TITLE = "lsd";
 int FONT_SIZE = 18;
 
@@ -44,7 +42,7 @@ std::atomic<bool> dirt_flag{ false };
 int scroll_offset = 0;
 PTY *current_pty;
 
-std::vector<LSD::Types::TerminalState> terminal_states(3);
+LSD::Types::TerminalState terminal_states[3];
 std::string current_terminal_label_data;
 
 int g_fbWidth = LSD::WINDOW_WIDTH;
@@ -444,7 +442,7 @@ void fill_status_bar()
     }
 }
 
-// ─── PTY callback ─────────────────────────────────────────────────────────────
+// PTY callback
 void read_callback(const char *msg, size_t size)
 {
   std::lock_guard<std::mutex> lk(LSD::lock);
@@ -817,7 +815,6 @@ void buildTerminalVertices(std::vector<float> &verts, int W, int H)
     }
 }
 
-
 void uploadVbo()
 {
   glBindBuffer(GL_ARRAY_BUFFER, LSD::g_terminal_VBO);
@@ -826,6 +823,22 @@ void uploadVbo()
   glBindBuffer(GL_ARRAY_BUFFER, 0);
 }
 
+void switch_current_terminal_state(const int &index)
+{
+  current_terminal_state = &terminal_states[index];
+  current_pty = &current_terminal_state->pty;
+
+  if (!current_terminal_state->pty.is_started)
+    {
+      current_pty->spawn();
+      LSD::current_pty->setReadCallback(LSD::read_callback);// TODO: find way to unsubscribe maybe
+    }
+
+  gridResizeLocked();
+  current_terminal_label_data = "[";
+  current_terminal_label_data += std::to_string(index);
+  current_terminal_label_data += "]";
+}
 
 void reload_font_size(int sz)
 {
@@ -992,41 +1005,13 @@ static void key_callback(GLFWwindow *win, int key, int, int action, int mods)
           reload_font_size(18);
           return;
         case GLFW_KEY_1:
-          current_terminal_state = &terminal_states[0];
-          // buildTerminalVertices(g_vertices, g_fbHeight, g_fbWidth);
-          LSD::current_pty->setReadCallback(LSD::read_callback);// TODO: find way to unsubscribe maybe
-
-          printf("rows=%d grid.size=%zu\n", current_terminal_state->rows, current_terminal_state->grid.size());
-          current_terminal_label_data = "[";
-          current_terminal_label_data += "1";
-          current_terminal_label_data += "]";
-
+          switch_current_terminal_state(0);
           return;
         case GLFW_KEY_2:
-          current_terminal_state = &terminal_states[1];
-          if (!current_terminal_state->pty.is_started)
-            {
-              current_pty = &current_terminal_state->pty;
-              current_pty->spawn();
-              LSD::current_pty->setReadCallback(LSD::read_callback);// TODO: find way to unsubscribe maybe
-            }
-          gridResizeLocked();
-          current_terminal_label_data = "[";
-          current_terminal_label_data += "2";
-          current_terminal_label_data += "]";
+          switch_current_terminal_state(1);
           return;
         case GLFW_KEY_3:
-          current_terminal_state = &terminal_states[2];
-          if (!current_terminal_state->pty.is_started)
-            {
-              current_pty = &current_terminal_state->pty;
-              current_pty->spawn();
-              LSD::current_pty->setReadCallback(LSD::read_callback);// TODO: find way to unsubscribe maybe
-            }
-          gridResizeLocked();
-          current_terminal_label_data = "[";
-          current_terminal_label_data += "3";
-          current_terminal_label_data += "]";
+          switch_current_terminal_state(2);
           return;
         }
     }
@@ -1197,7 +1182,7 @@ int main()
   LSD::current_pty = &LSD::current_terminal_state->pty;
   LSD::current_pty->setReadCallback(LSD::read_callback);// TODO: find way to unsubscribe maybe
 
-  // ── Terminal shader (required) ───────────────────────────────────────────
+  // Terminal shader (required)
   LSD::g_terminal_program = LSD::loadShaders(asset_path + "shaders/shader.vert", asset_path + "shaders/shader.frag");
   if (!LSD::g_terminal_program)
     {
@@ -1291,7 +1276,7 @@ int main()
     LSD::gridResizeLocked();
   }
 
-  // ── Terminal shader uniforms ──────────────────────────────────────────────
+  // Terminal shader uniforms
   glUseProgram(LSD::g_terminal_program);
   glUniform1i(glGetUniformLocation(LSD::g_terminal_program, "atlasRegular"), 0);
   glUniform1i(glGetUniformLocation(LSD::g_terminal_program, "atlasBold"), 1);
@@ -1299,7 +1284,7 @@ int main()
   glUniform1i(glGetUniformLocation(LSD::g_terminal_program, "atlasBoldItalic"), 3);
   glUseProgram(0);
 
-  // ── Terminal VAO (12 floats per vertex) ──────────────────────────────────
+  // Terminal VAO (12 floats per vertex)
   const GLsizei STRIDE = 12 * sizeof(float);
   glGenVertexArrays(1, &LSD::g_terminal_vao);
   glGenBuffers(1, &LSD::g_terminal_VBO);
