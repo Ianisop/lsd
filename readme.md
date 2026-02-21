@@ -20,6 +20,12 @@
 **lsd** is a modern GPU-accelerated terminal emulator written in **C++20** using **OpenGL**.  
 It renders terminal text as a real-time graphics workload instead of a traditional UI surface.
 
+## ✦ Install
+
+```bash
+curl -O https://github.com/Ianisop/lsd/blob/main/install.sh && ./install.sh
+```
+
 ## ✦ Build
 
 ```bash
