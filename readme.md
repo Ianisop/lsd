@@ -29,7 +29,7 @@ curl -sSL https://raw.githubusercontent.com/Ianisop/lsd/main/install.sh | sh
 ## ✦ Build
 
 ```bash
-git clone https://github.com/yourname/lsd.git
+git clone https://github.com/Ianisop/lsd.git
 cd lsd
 mkdir build && cd build
 cmake ..
