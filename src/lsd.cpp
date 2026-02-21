@@ -206,6 +206,8 @@ void uploadAtlases()
     }
 }
 
+// test comment for merge commit :)
+
 // Grid helpers (call with g_lock held)
 void gridResizeLocked()
 {
