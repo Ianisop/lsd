@@ -45,4 +45,7 @@ Type=Application
 Categories=Utility;TerminalEmulator;
 EOF
 
+cd ..
+rm -rf lsd/
+
 echo "Installation complete. You can run '$APP_NAME' from your application menu or terminal."
