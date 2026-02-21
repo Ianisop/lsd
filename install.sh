@@ -1,6 +1,9 @@
 #!/bin/bash
 set -e
 
+git clone https://github.com/Ianisop/lsd
+cd lsd
+
 APP_NAME="lsd"
 BUILD_DIR="build"
 INSTALL_BIN="/usr/local/bin/$APP_NAME"
