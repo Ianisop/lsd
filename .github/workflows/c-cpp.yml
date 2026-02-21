@@ -62,12 +62,4 @@ jobs:
         git tag ${{ steps.tag.outputs.tag }}
         git push origin ${{ steps.tag.outputs.tag }}
 
-    # ---- create GitHub release ----
-    - name: Create Release
-      uses: softprops/action-gh-release@v2
-      with:
-        tag_name: ${{ steps.tag.outputs.tag }}
-        files: install.sh   # upload your zip directly
-      env:
-        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-      
+
