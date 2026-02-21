@@ -6,7 +6,7 @@
 <p align="center"><b>Lightweight Shader-Driven Terminal Emulator</b></p>
 
 <p align="center">
-  <img src="https://img.shields.io/badge/version-0.1.0-blue">
+  <img src="https://img.shields.io/badge/version-0.6.0-blue">
   <img src="https://img.shields.io/badge/C%2B%2B-20-blue">
   <img src="https://img.shields.io/badge/OpenGL-3.3%2B-green">
   <img src="https://img.shields.io/badge/platform-Linux-orange">
