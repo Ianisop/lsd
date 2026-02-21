@@ -22,7 +22,7 @@ jobs:
         cd build
         ../build.sh
         cd ..
-        zip -r release.zip build/
+        zip release.zip build/lsd build/*.vert build/*.frag build/*.ttf
 
     # ---- compute next incremental tag ----
     - name: Generate next tag
