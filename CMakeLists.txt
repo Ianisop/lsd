@@ -77,8 +77,7 @@ target_link_libraries(lsd
     OpenGL::GL
     Freetype::Freetype
     clip
-    toml++
-)
+    tomlplusplus::tomlplusplus)
 
 # ---- Define install path macro ----
 if(CMAKE_BUILD_TYPE MATCHES Release)

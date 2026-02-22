@@ -3,6 +3,7 @@
 #include <glad/glad.h>
 #include "lsd.h"
 #include "clip.h"
+#include "config/config.h"
 #include "lsd_pty.h"
 #include "parse/csi_parser.h"
 #include "parse/osc_parser.h"
@@ -22,6 +23,7 @@
 #include <sstream>
 #include <string>
 #include <unistd.h>
+#include "config/config.h"
 #include <vector>
 
 #ifdef RELEASE_INSTALL_PATH
@@ -573,7 +575,7 @@ void buildTerminalVertices(std::vector<float> &verts, int W, int H)
       for (int col = 0; col < (int)snap[row].size(); ++col)
         {
           const LSD::Types::Cell &cell = snap[row][col];
-          glm::vec3 fg = cell.fg;
+          glm::vec3 fg = cell.has_fg ? cell.fg : LSD::Config::font_color;
           glm::vec3 bg = cell.selected ? glm::vec3(1, 1, 1) : cell.bg;
 
           float x0 = col * cellW;
@@ -1137,6 +1139,8 @@ int main()
   if (!win) return -1;
   glfwMakeContextCurrent(win);
   if (!gladLoadGLLoader((GLADloadproc)glfwGetProcAddress)) return -1;
+  LSD::Config::load_or_make_config(get_config_path());
+  LSD::Config::parse(get_config_path());
 
   int fbW, fbH;
   glfwGetFramebufferSize(win, &fbW, &fbH);

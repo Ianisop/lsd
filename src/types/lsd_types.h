@@ -5,6 +5,7 @@
 #include <vector>
 #include "glm/vec3.hpp"
 #include "glm/vec2.hpp"
+#include "lsd.h"
 #include "lsd_pty.h"
 
 namespace LSD::Types
@@ -34,8 +35,9 @@ struct CopiedChar
 struct Cell
 {
   char ch = ' ';
-  glm::vec3 fg{ 1.f, 1.f, 1.f };
+  glm::vec3 fg = { 1, 1, 1 };
   glm::vec3 bg{ 0.f, 0.f, 0.f };
+  bool has_fg = false;
   bool bold = false, italic = false, selected = false;
 };
 

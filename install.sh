@@ -47,4 +47,21 @@ EOF
 
 rm -rf lsd/
 
+CONFIG_DIR="${XDG_CONFIG_HOME:-$HOME/.config}/lsd"
+
+echo "Creating config directory and config file"
+# Create the directory (no error if it exists)
+mkdir -p "$CONFIG_DIR"
+
+cat > "$CONFIG_DIR/config.toml" <<'EOF'
+# LSD terminal configuration
+
+[font]
+size = 18
+color = [1.0, 1.0, 1.0] # default font color (white)
+
+[window]
+title = "lsd"
+EOF
+
 echo "Installation complete. You can run '$APP_NAME' from your application menu or terminal."

@@ -17,5 +17,6 @@ const std::string TERMINAL_CONFIG_KEY = "[terminal]";
 const std::string UI_CONFIG_KEY = "[face]";
 
 bool parse(const std::string &config);
+bool load_or_make_config(const std::string &config);
 bool reload();
 }// namespace LSD::Config
