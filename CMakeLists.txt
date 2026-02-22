@@ -39,6 +39,14 @@ FetchContent_Declare(
 )
 FetchContent_MakeAvailable(clip)
 
+# ---- TOML++ ----
+FetchContent_Declare(
+    toml++
+    GIT_REPOSITORY https://github.com/marzer/tomlplusplus
+    GIT_TAG v3.4.0
+)
+FetchContent_MakeAvailable(toml++)
+
 # ---- Executable ----
 add_executable(lsd
     src/lsd.cpp
@@ -49,6 +57,8 @@ add_executable(lsd
     src/tty.h
     src/parse/ansi_parser.h
     src/parse/csi_parser.h
+    src/config/config.cpp
+    src/config/config.h
     src/parse/osc_parser.h
     src/lsd_pty.cpp
     src/lsd_pty.h
@@ -67,6 +77,7 @@ target_link_libraries(lsd
     OpenGL::GL
     Freetype::Freetype
     clip
+    toml++
 )
 
 # ---- Define install path macro ----

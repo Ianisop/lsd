@@ -25,15 +25,30 @@
 #include <vector>
 
 #ifdef RELEASE_INSTALL_PATH
-std::string asset_path = RELEASE_INSTALL_PATH;
+std::string ASSET_PATH = RELEASE_INSTALL_PATH;
 #else
-std::string asset_path = DEBUG_INSTALL_PATH;
+std::string ASSET_PATH = DEBUG_INSTALL_PATH;
 #endif
+
+const char *get_config_path()
+{
+  static std::string path = [] {
+    if (const char *xdg = std::getenv("XDG_CONFIG_HOME")) return std::string(xdg) + "/lsd/config.toml";
+
+    if (const char *home = std::getenv("HOME")) return std::string(home) + "/.config/lsd/config.toml";
+
+    return std::string("./config/lsd/config.toml");
+  }();
+
+  return path.c_str();
+}
 
 namespace LSD
 {
 std::string WINDOW_TITLE = "lsd";
 int FONT_SIZE = 18;
+
+const char *CONFIG_PATH = get_config_path();
 
 std::mutex lock;
 LSD::Types::TerminalState *current_terminal_state;
@@ -48,10 +63,6 @@ int g_fbWidth = LSD::WINDOW_WIDTH;
 int g_fbHeight = LSD::WINDOW_HEIGHT;
 int glyph_width = 0;
 int glyph_height = 0;
-
-const char *CLEAR_SCREEN_ANSI = "\x1b[2J\x1b[H";// CLEAR SCREEN AND MOVE CURSOR TO TOP
-
-bool is_chaining_nano_exit = false;
 
 double delta_time = 0;
 const double target_frame_time = 1.0 / LSD::MAX_FPS;
@@ -1143,7 +1154,7 @@ int main()
   LSD::current_pty->setReadCallback(LSD::read_callback);// TODO: find way to unsubscribe maybe
 
   // Terminal shader (required)
-  LSD::g_terminal_program = LSD::loadShaders(asset_path + "shaders/shader.vert", asset_path + "shaders/shader.frag");
+  LSD::g_terminal_program = LSD::loadShaders(ASSET_PATH + "shaders/shader.vert", ASSET_PATH + "shaders/shader.frag");
   if (!LSD::g_terminal_program)
     {
       std::cerr << "Failed to load terminal shaders\n";
@@ -1151,7 +1162,7 @@ int main()
     }
 
   // Background shader falls back to clear color
-  LSD::g_background_program = LSD::loadShaders(asset_path + "shaders/bg.vert", asset_path + "shaders/bg.frag");
+  LSD::g_background_program = LSD::loadShaders(ASSET_PATH + "shaders/bg.vert", ASSET_PATH + "shaders/bg.frag");
   if (LSD::g_background_program)
     {
       LSD::g_background_time_loc = glGetUniformLocation(LSD::g_background_program, "uTime");
@@ -1207,14 +1218,14 @@ int main()
       std::cerr << "FT init failed\n";
       return -1;
     }
-  if (FT_New_Face(LSD::font_library, (asset_path + "fonts/JetBrainsMono-Medium.ttf").c_str(), 0, &LSD::font_normal_face))
+  if (FT_New_Face(LSD::font_library, (ASSET_PATH + "fonts/JetBrainsMono-Medium.ttf").c_str(), 0, &LSD::font_normal_face))
     {
       std::cerr << "Regular font missing\n";
       return -1;
     }
-  FT_New_Face(LSD::font_library, (asset_path + "fonts/JetBrainsMono-Bold.ttf").c_str(), 0, &LSD::font_bold_face);
-  FT_New_Face(LSD::font_library, (asset_path + "fonts/JetBrainsMono-Italic.ttf").c_str(), 0, &LSD::font_italic_face);
-  FT_New_Face(LSD::font_library, (asset_path + "fonts/JetBrainsMono-BoldItalic.ttf").c_str(), 0, &LSD::font_bold_italic_face);
+  FT_New_Face(LSD::font_library, (ASSET_PATH + "fonts/JetBrainsMono-Bold.ttf").c_str(), 0, &LSD::font_bold_face);
+  FT_New_Face(LSD::font_library, (ASSET_PATH + "fonts/JetBrainsMono-Italic.ttf").c_str(), 0, &LSD::font_italic_face);
+  FT_New_Face(LSD::font_library, (ASSET_PATH + "fonts/JetBrainsMono-BoldItalic.ttf").c_str(), 0, &LSD::font_bold_italic_face);
 
   auto setSize = [](FT_Face f) {
     if (f) FT_Set_Pixel_Sizes(f, 0, (FT_UInt)LSD::FONT_SIZE);
