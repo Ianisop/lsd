@@ -6,7 +6,6 @@
 #include <algorithm>
 #include <glm/common.hpp>
 
-
 namespace LSD
 {
 namespace Types

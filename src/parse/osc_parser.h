@@ -21,5 +21,4 @@ static void process_osc(const std::string &seq)
   if (cmd == 0 || cmd == 2) LSD::WINDOW_TITLE = seq.substr(sep + 1);
 }
 
-
 }// namespace LSD::OscParser

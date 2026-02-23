@@ -3,6 +3,7 @@
 #include <deque>
 #include <iostream>
 #include <vector>
+#include "config/config.h"
 #include "glm/vec3.hpp"
 #include "glm/vec2.hpp"
 #include "lsd.h"
@@ -22,8 +23,8 @@ struct AnsiState
 {
   EscState state = EscState::Normal;
   std::string param_buf;
-  glm::vec3 fg{ 0.f, 0.8f, 0.6f }, bg{ 0.f, 0.f, 0.f };
-  bool bold = false, italic = false;
+  glm::vec3 fg = LSD::Config::font_color, bg{ 0.f, 0.f, 0.f };
+  bool bold = false, italic = false, fg_override = false, bg_override = false;
 };
 
 struct CopiedChar
@@ -35,10 +36,10 @@ struct CopiedChar
 struct Cell
 {
   char ch = ' ';
+  AnsiState ansi_state;
   glm::vec3 fg = { 1, 1, 1 };
   glm::vec3 bg{ 0.f, 0.f, 0.f };
-  bool has_fg = false;
-  bool bold = false, italic = false, selected = false;
+  bool selected = false;
 };
 
 // Terminal state

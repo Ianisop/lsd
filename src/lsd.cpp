@@ -48,7 +48,7 @@ const char *get_config_path()
 namespace LSD
 {
 std::string WINDOW_TITLE = "lsd";
-int FONT_SIZE = 18;
+int FONT_SIZE = LSD::Config::font_size;
 
 const char *CONFIG_PATH = get_config_path();
 
@@ -70,8 +70,6 @@ double delta_time = 0;
 const double target_frame_time = 1.0 / LSD::MAX_FPS;
 double frame_start_time = 0.0;
 double frame_end_time = 0.0;
-
-LSD::Types::AnsiState ansi_state;
 
 std::vector<LSD::Types::CopiedChar> clipboard;
 
@@ -361,8 +359,7 @@ void gridPutLocked(char c)
   if (col < 0 || col >= COLS) return;
 
   // Place the character
-  LSD::current_terminal_state->grid[row][col] = LSD::Types::Cell{ c, LSD::ansi_state.fg, LSD::ansi_state.bg, LSD::ansi_state.bold, LSD::ansi_state.italic };
-
+  LSD::current_terminal_state->grid[row][col] = LSD::Types::Cell{ c, LSD::AnsiParser::next_ansi_state, LSD::AnsiParser::next_ansi_state.fg, LSD::AnsiParser::next_ansi_state.bg, false };
   // Move to next column
   ++col;
 }
@@ -439,63 +436,63 @@ void read_callback(const char *msg, size_t size)
   for (size_t i = 0; i < size; ++i)
     {
       unsigned char byte = (unsigned char)msg[i];
-      switch (LSD::ansi_state.state)
+      switch (LSD::AnsiParser::next_ansi_state.state)
         {
         case LSD::Types::EscState::Normal:
           if (byte == 0x1B)
             {
-              LSD::ansi_state.state = LSD::Types::EscState::Esc;
-              LSD::ansi_state.param_buf.clear();
+              LSD::AnsiParser::next_ansi_state.state = LSD::Types::EscState::Esc;
+              LSD::AnsiParser::next_ansi_state.param_buf.clear();
             }
           else
             LSD::gridPutLocked((char)byte);
           break;
         case LSD::Types::EscState::Esc:
-          LSD::ansi_state.param_buf.clear();
+          LSD::AnsiParser::next_ansi_state.param_buf.clear();
           if (byte == '[')
-            LSD::ansi_state.state = LSD::Types::EscState::CSI;
+            LSD::AnsiParser::next_ansi_state.state = LSD::Types::EscState::CSI;
           else if (byte == ']')
-            LSD::ansi_state.state = LSD::Types::EscState::OSC;
+            LSD::AnsiParser::next_ansi_state.state = LSD::Types::EscState::OSC;
           else if (byte == 'c')
             {
               for (auto &r : LSD::current_terminal_state->grid) r.assign(LSD::current_terminal_state->cols, LSD::Types::Cell{});
               LSD::current_terminal_state->cur_row = 0;
               LSD::current_terminal_state->cur_col = 0;
-              LSD::ansi_state.state = LSD::Types::EscState::Normal;
+              LSD::AnsiParser::next_ansi_state.state = LSD::Types::EscState::Normal;
             }
           else if (byte == 'M')
             {
               if (LSD::current_terminal_state->cur_row > 0) --LSD::current_terminal_state->cur_row;
-              LSD::ansi_state.state = LSD::Types::EscState::Normal;
+              LSD::AnsiParser::next_ansi_state.state = LSD::Types::EscState::Normal;
             }
           else
-            LSD::ansi_state.state = LSD::Types::EscState::Normal;
+            LSD::AnsiParser::next_ansi_state.state = LSD::Types::EscState::Normal;
           break;
         case LSD::Types::EscState::CSI:
           if (byte >= 0x40 && byte <= 0x7E)
             {
-              LSD::CsiParser::process_csi_locked(LSD::ansi_state.param_buf, (char)byte);
-              LSD::ansi_state.state = LSD::Types::EscState::Normal;
-              LSD::ansi_state.param_buf.clear();
+              LSD::CsiParser::process_csi_locked(LSD::AnsiParser::next_ansi_state.param_buf, (char)byte);
+              LSD::AnsiParser::next_ansi_state.state = LSD::Types::EscState::Normal;
+              LSD::AnsiParser::next_ansi_state.param_buf.clear();
             }
           else
-            LSD::ansi_state.param_buf += (char)byte;
+            LSD::AnsiParser::next_ansi_state.param_buf += (char)byte;
           break;
         case LSD::Types::EscState::OSC:
           if (byte == 0x07)
             {
-              LSD::OscParser::process_osc(LSD::ansi_state.param_buf);
-              LSD::ansi_state.state = LSD::Types::EscState::Normal;
-              LSD::ansi_state.param_buf.clear();
+              LSD::OscParser::process_osc(LSD::AnsiParser::next_ansi_state.param_buf);
+              LSD::AnsiParser::next_ansi_state.state = LSD::Types::EscState::Normal;
+              LSD::AnsiParser::next_ansi_state.param_buf.clear();
             }
           else if (byte == 0x1B)
             {
-              LSD::OscParser::process_osc(LSD::ansi_state.param_buf);
-              LSD::ansi_state.state = LSD::Types::EscState::Esc;
-              LSD::ansi_state.param_buf.clear();
+              LSD::OscParser::process_osc(LSD::AnsiParser::next_ansi_state.param_buf);
+              LSD::AnsiParser::next_ansi_state.state = LSD::Types::EscState::Esc;
+              LSD::AnsiParser::next_ansi_state.param_buf.clear();
             }
           else
-            LSD::ansi_state.param_buf += (char)byte;
+            LSD::AnsiParser::next_ansi_state.param_buf += (char)byte;
           break;
         }
     }
@@ -575,9 +572,9 @@ void buildTerminalVertices(std::vector<float> &verts, int W, int H)
       for (int col = 0; col < (int)snap[row].size(); ++col)
         {
           const LSD::Types::Cell &cell = snap[row][col];
-          glm::vec3 fg = cell.has_fg ? cell.fg : LSD::Config::font_color;
-          glm::vec3 bg = cell.selected ? glm::vec3(1, 1, 1) : cell.bg;
-
+          glm::vec3 fg = cell.ansi_state.fg_override ? cell.ansi_state.fg : LSD::Config::font_color;
+          glm::vec3 bg = cell.selected ? glm::vec3(1, 1, 1) : cell.ansi_state.bg;
+          // std::cout << "Char: " << cell.ch << " FG: " << LSD::AnsiParser::next_ansi_state.fg.r << "," << LSD::AnsiParser::next_ansi_state.fg.g << "," << LSD::AnsiParser::next_ansi_state.fg.b << "\n";
           float x0 = col * cellW;
           float y0 = row * cellH;
           float x1 = x0 + cellW;
@@ -605,11 +602,11 @@ void buildTerminalVertices(std::vector<float> &verts, int W, int H)
           if (ch == ' ' || ch == '\0') continue;
 
           int gi = 0;
-          if (cell.bold && cell.italic && LSD::font_bold_italic_face)
+          if (cell.ansi_state.bold && cell.ansi_state.italic && LSD::font_bold_italic_face)
             gi = 3;
-          else if (cell.bold && LSD::font_bold_face)
+          else if (cell.ansi_state.bold && LSD::font_bold_face)
             gi = 1;
-          else if (cell.italic && LSD::font_italic_face)
+          else if (cell.ansi_state.italic && LSD::font_italic_face)
             gi = 2;
 
           auto it = LSD::glyphs[gi].find(ch);
@@ -675,11 +672,11 @@ void buildTerminalVertices(std::vector<float> &verts, int W, int H)
       if (ch == ' ' || ch == '\0') continue;
 
       int gi = 0;
-      if (cell.bold && cell.italic && LSD::font_bold_italic_face)
+      if (cell.ansi_state.bold && cell.ansi_state.italic && LSD::font_bold_italic_face)
         gi = 3;
-      else if (cell.bold && LSD::font_bold_face)
+      else if (cell.ansi_state.bold && LSD::font_bold_face)
         gi = 1;
-      else if (cell.italic && LSD::font_italic_face)
+      else if (cell.ansi_state.italic && LSD::font_italic_face)
         gi = 2;
 
       auto it = LSD::glyphs[gi].find(ch);
@@ -737,11 +734,11 @@ void buildTerminalVertices(std::vector<float> &verts, int W, int H)
           if (ch != ' ' && ch != '\0')
             {
               int gi = 0;
-              if (cursorCell.bold && cursorCell.italic && LSD::font_bold_italic_face)
+              if (cursorCell.ansi_state.bold && cursorCell.ansi_state.italic && LSD::font_bold_italic_face)
                 gi = 3;
-              else if (cursorCell.bold && LSD::font_bold_face)
+              else if (cursorCell.ansi_state.bold && LSD::font_bold_face)
                 gi = 1;
-              else if (cursorCell.italic && LSD::font_italic_face)
+              else if (cursorCell.ansi_state.italic && LSD::font_italic_face)
                 gi = 2;
 
               auto it = LSD::glyphs[gi].find(ch);

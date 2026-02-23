@@ -16,8 +16,8 @@
 namespace LSD
 {
 // Constants (keep static)
-static const int WINDOW_WIDTH = 800;
-static const int WINDOW_HEIGHT = 600;
+static const int WINDOW_WIDTH = 1920;
+static const int WINDOW_HEIGHT = 1080;
 static const int FONT_SIZE_MIN = 8;
 static const int FONT_SIZE_MAX = 72;
 static const int FONT_SIZE_DEFAULT = 12;
@@ -37,7 +37,6 @@ extern int scroll_offset;
 extern PTY *current_pty;
 extern int g_fbWidth, g_fbHeight;
 extern int glyph_width, glyph_height;
-extern Types::AnsiState ansi_state;
 extern double delta_time;
 
 // OpenGL stuff
