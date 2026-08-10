@@ -37,4 +37,8 @@ make -j$(nproc)
 ./lsd
 ```
 
+## Dependencies 
+```bash
+sudo apt-get install build-essential libfreetype6-dev cmake git
+```
 ![ss](https://cdn.discordapp.com/attachments/1107275969166843995/1473589628018757724/image.png?ex=6996c2c9&is=69957149&hm=d964bf520b01a4208426584468a4c3f39092df5b7a30cd220bafd19b4423b7c2&)
