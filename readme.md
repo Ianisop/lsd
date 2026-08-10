@@ -39,7 +39,7 @@ make -j$(nproc)
 
 ## Dependencies 
 ```bash
-sudo apt install pkg-config libfreetype6-dev libglfw3-dev libgl1-mesa-dev libwayland-dev libwayland-bin wayland-protocols libxkbcommon-dev libx11-dev libxrandr-dev libxinerama-dev libxcursor-dev libxi-dev
+sudo apt install pkg-config libfreetype6-dev libglfw3-dev libgl1-mesa-dev libwayland-dev libwayland-bin wayland-protocols libxkbcommon-dev libx11-dev libxrandr-dev libxinerama-dev libxcursor-dev libxi-dev mesa-utils
    
 ```
 ![ss](https://cdn.discordapp.com/attachments/1107275969166843995/1473589628018757724/image.png?ex=6996c2c9&is=69957149&hm=d964bf520b01a4208426584468a4c3f39092df5b7a30cd220bafd19b4423b7c2&)
